@@ -21,8 +21,8 @@ Malaika Honey/
 │   │   ├── lib/           # firebase.js, constants.js, utils.js
 │   │   ├── screens/       # one module per screen
 │   │   └── config/
-│   │       ├── firebase.config.example.js   # committed template
-│   │       └── firebase.config.js           # gitignored — real keys, local only
+│   │       ├── firebase.config.example.js   # template/reference
+│   │       └── firebase.config.js           # committed — see note below
 │   └── assets/            # logo, icons
 ├── firebase.json           # hosting + emulator config
 ├── .firebaserc             # maps this repo to the malaikahoney-78577 project
@@ -33,14 +33,13 @@ Malaika Honey/
 
 ## Firebase Web App configuration
 
-The Firebase **web app config object** (`apiKey`, `authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, `appId`) is required by the client SDK to connect to `malaikahoney-78577`. This is *not* a server secret — it's safe to ship in a public web app, because access is actually controlled by Firestore Security Rules, not by hiding this object. Even so, it is kept out of git here (`public/js/config/firebase.config.js` is in `.gitignore`) simply so the repo doesn't hardcode one specific project and so the config can differ between local/emulator and production without a code change.
+The Firebase **web app config object** (`apiKey`, `authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, `appId`) is required by the client SDK to connect to `malaikahoney-78577`. This is *not* a server secret — it's safe to ship in a public web app, because access is actually controlled by Firestore Security Rules, not by hiding this object.
 
-**To get the real config values** (one-time setup, must be done by whoever administers the Firebase console):
-1. Firebase Console → Project settings → General → "Your apps" → add/select the Web app for `malaikahoney-78577`.
-2. Copy the `firebaseConfig` object shown there.
-3. Paste it into `public/js/config/firebase.config.js` (copy the committed `firebase.config.example.js` as a starting point).
+**`public/js/config/firebase.config.js` is committed to git with the real values**, deliberately. This app is a static site with no build step and no environment-variable injection at deploy time (Netlify/Firebase Hosting just publish the `public/` folder as-is) — so if this file isn't in the repo, the deployed app has no config to import and fails to start (a blank screen, since the very first module import throws). Gitignoring it was tried initially and broke the first Netlify deploy for exactly this reason.
 
-Until that file exists, the app **automatically falls back to the local Firebase emulator** (see `public/js/lib/firebase.js`) so development and testing work with zero real credentials.
+The web app registration was created via `firebase apps:create WEB` and its config fetched via `firebase apps:sdkconfig WEB <appId>` — both one-time CLI operations against `malaikahoney-78577`. If the app is ever recreated or the project changes, regenerate this file the same way, or from Firebase Console → Project settings → General → "Your apps".
+
+Locally, none of this matters day-to-day: `public/js/lib/firebase.js` detects `localhost` and connects to the Firestore emulator instead, ignoring whether these values are real.
 
 ## Environment variables / secrets
 
