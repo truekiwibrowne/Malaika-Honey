@@ -1,9 +1,8 @@
-import { el, mount, setHeaderTitle } from '../lib/ui.js';
+import { el, mount } from '../lib/ui.js';
 import { getFarmerByFrn, getPurchaseHistory } from '../lib/db.js';
 import { formatUgx, formatDate, productLabel } from '../lib/constants.js';
 
 export async function renderHistory(root, { frn }) {
-  setHeaderTitle('History');
   mount(root, el('p', { class: 'hint' }, 'Loading history…'));
 
   const [farmer, purchases] = await Promise.all([getFarmerByFrn(frn), getPurchaseHistory(frn)]);

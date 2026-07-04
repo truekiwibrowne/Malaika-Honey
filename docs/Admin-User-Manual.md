@@ -19,13 +19,15 @@ Use this the first time a farmer brings honey or wants to join Malaika Honey.
    - Farm size, number of hives (Traditional / KTB / Modern)
    - Average honey harvest per year, whether they use chemicals, whether they want training
 3. Tap **Save Farmer**.
+   - If the phone number is already registered to someone else, the app will **refuse to save** and show you who it belongs to (name and FRN) — each phone number can only be registered once. Use **Find Farmer** instead if this is the same person.
+   - If the name is already registered (but the phone number is new), the app will ask you to confirm before continuing — this is expected when two different farmers share a name, so you can choose to proceed or go back and double-check.
 4. The app will show a new **FRN (Farmer Reference Number)** — something like `MH004826`. This number belongs to this farmer forever. Write it on their paper file if you keep one, and let them know their number.
 5. From this confirmation screen you can immediately:
    - Tap **Buy Produce** if they've brought honey today, or
    - Tap **Done** to return home.
-6. Print or write the FRN on a card for the farmer to bring next time — see "Printing a farmer card" below.
+6. Download or write the FRN on a card for the farmer to bring next time — see "Farmer ID cards" below.
 
-**Tip:** if a farmer already has an FRN from a previous visit, don't register them again — use **Find Farmer** instead.
+**Tip:** if a farmer already has an FRN from a previous visit, don't register them again — use **Find Farmer** instead. The app blocks re-registering the same phone number for exactly this reason.
 
 ## Finding a farmer
 
@@ -35,9 +37,9 @@ Use this every time a returning farmer arrives, before recording a purchase.
 2. Type part of their name, their FRN, or their phone number.
 3. Tap their name in the results list.
 4. Their profile opens, showing their village, phone, lifetime honey delivered, date of their last delivery, and total paid to date.
-5. From here, tap **Buy Produce** to record today's delivery, **History** to see their past deliveries, or **Edit Details** if something on file needs correcting.
+5. From here, tap **Buy Produce** to record today's delivery, or **History** to see their past deliveries. Correcting a farmer's details isn't available in this app yet — that's handled by admin staff in the management app (see [[Backlog]]).
 
-**If a farmer presents a printed card:** check the name and details on the card match what comes up when you search their FRN, before processing their purchase.
+**If a farmer presents their card:** check the name and details on it match what comes up when you search their FRN, before processing their purchase.
 
 ## Recording a purchase (Buy Produce)
 
@@ -59,9 +61,9 @@ This should take no more than a few taps once you've found the farmer.
 
 This flow is designed so you never have to go back to the Home screen between farmers during a busy day.
 
-## Printing a farmer card
+## Farmer ID cards
 
-From a farmer's profile, open the printable card. It shows their FRN, name, village/district, and phone. Print it (or write it by hand if no printer is available) and give it to the farmer to bring on future visits — it speeds up finding them next time.
+From a farmer's profile, open **Farmer Card**. It shows their FRN, name, village/district, and phone. Tap **Download PDF** to save a small card-sized PDF — print it at the centre (or write the details by hand if no printer is available) and give it to the farmer to bring on future visits. It speeds up finding them next time.
 
 ## Common questions
 

@@ -22,9 +22,10 @@ One document per registered farmer. Document ID = FRN.
 | `frn` | string | Redundant copy of the doc ID, so query results carry it without needing the ID separately |
 | `schemaVersion` | number | Currently `1` |
 | `fullName` | string | Required |
+| `fullNameLower` | string | Lowercased copy of `fullName`, kept in sync at write time — powers case-insensitive name search and the duplicate-name check on registration (see below) |
 | `dateOfBirth` | string (`YYYY-MM-DD`) or null | Optional in the field; encouraged |
 | `gender` | string enum: `male`, `female` | |
-| `phone` | string | Primary contact, used for search |
+| `phone` | string | Primary contact, used for search and must be unique (see below) |
 | `email` | string or null | Optional |
 | `village` | string | Required |
 | `district` | string | Required, dropdown-driven (Uganda district list) |
@@ -47,6 +48,8 @@ One document per registered farmer. Document ID = FRN.
 | `lifetimeStats.lastPurchaseAt` | timestamp or null | Denormalized, drives "Last Delivery" on the profile screen |
 
 **Why denormalize `lifetimeStats`:** the Farmer Profile screen must render instantly and offline. Recomputing totals from the `purchases` collection on every screen load doesn't scale and doesn't work well offline. Instead, `buyProduce` writes update both the new `purchases` doc and the farmer's `lifetimeStats` in a single Firestore transaction.
+
+**Phone uniqueness is enforced at the application layer, not by Firestore.** Firestore has no native "unique field" constraint, so `public/js/lib/db.js`'s `findFarmerByPhone` runs an exact-match query before every registration and blocks the save if a match exists. This is a check-then-act pattern, not a transaction — two staff registering the same phone number at the *exact* same instant on two different offline devices could theoretically both pass the check before either syncs. This is an accepted, low-probability edge case for now (see [[Risk-Register]]); if it ever matters at scale, real uniqueness would require either a document ID keyed by phone or a Cloud Function trigger that reconciles duplicates after sync. Full names are deliberately **not** unique — `findFarmerByName` only warns (via a confirm dialog) since two different farmers can share a name.
 
 ### `purchases/{purchaseId}`
 
@@ -82,9 +85,11 @@ Single document holding the sequence used to mint new FRNs.
 
 FRN format: `MH` + `lastValue` zero-padded to 6 digits, e.g. `MH004826`. Incrementing and reading `lastValue` happens inside a Firestore transaction together with the `farmers/{frn}` document creation, so two staff members registering farmers at the same moment (even offline, on reconnect) can never be issued the same FRN.
 
-### `products` (reference collection, optional/future)
+### `products`, `grades`, `paymentMethods` (reference collections, optional/future)
 
-The five products (Honey, Bee Wax, Pollen, Propolis, Bee Venom) are hardcoded in `public/js/lib/constants.js` for the MVP because the list rarely changes and hardcoding keeps the app usable fully offline on first install with zero reads. If Malaika later needs to add/rename products or set default prices per grade without a code deploy, promote this to a real `products/{productId}` collection — the app already reads product info from one JS module, so the swap is localized.
+The product list (Honey, Bee Wax, Pollen, Propolis, Bee Venom), grade list (A/B/C), and payment method list (Cash, Mobile Money, Bank) are all hardcoded in `public/js/lib/constants.js` for the MVP, because these lists rarely change and hardcoding keeps the app usable fully offline on first install with zero reads.
+
+This is deliberately not a schema limitation: `purchases.product`, `purchases.grade`, and `purchases.paymentMethod` are stored as **plain strings**, not restricted enums, so admin-added values (e.g. a new product, a 4th grade, a new mobile-money provider) can be written and read without any migration the moment the admin app exists. The only piece that needs to change when the list changes is the field app's UI options — today that means a code change to `constants.js`; if the admin app needs to add these without waiting for a field-app redeploy, promote each list to its own small Firestore collection (e.g. `products/{productId}`, `grades/{gradeId}`, `paymentMethods/{methodId}`) and have the field app read from there (falling back to the hardcoded list if offline on first run). The app already reads all three lists from one JS module, so that swap is localized and doesn't touch `purchases`/`farmers` documents at all.
 
 ## Future M&E-driven additions (not built yet — see [[Backlog]])
 

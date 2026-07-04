@@ -1,4 +1,4 @@
-import { el, mount, setHeaderTitle } from '../lib/ui.js';
+import { el, mount } from '../lib/ui.js';
 import { navigate } from '../router.js';
 import { getFarmerByFrn, savePurchase } from '../lib/db.js';
 import { PRODUCTS, GRADES, PAYMENT_METHODS, formatUgx } from '../lib/constants.js';
@@ -27,7 +27,6 @@ function choiceGroup(options, getLabel, getId, onSelect) {
 }
 
 export async function renderBuyProduce(root, { frn }) {
-  setHeaderTitle('Buy Produce');
   mount(root, el('p', { class: 'hint' }, 'Loading farmer…'));
 
   const farmer = await getFarmerByFrn(frn);
@@ -131,8 +130,6 @@ export async function renderBuyProduce(root, { frn }) {
 }
 
 export function renderBuyProduceSuccess(root, { frn }) {
-  setHeaderTitle('Purchase Saved');
-
   mount(
     root,
     el('div', { class: 'confirm-icon' }, '✔'),

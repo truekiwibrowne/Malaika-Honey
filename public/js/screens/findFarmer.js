@@ -1,10 +1,9 @@
-import { el, mount, setHeaderTitle } from '../lib/ui.js';
+import { el, mount } from '../lib/ui.js';
 import { searchFarmers } from '../lib/db.js';
 
 let debounceTimer = null;
 
 export function renderFindFarmer(root, query) {
-  setHeaderTitle('Find Farmer');
   const intent = query ? query.get('intent') : null;
   const destPrefix = intent === 'buy' ? '#/buy/' : '#/farmer/';
 
@@ -12,7 +11,7 @@ export function renderFindFarmer(root, query) {
 
   const searchInput = el('input', {
     type: 'text',
-    placeholder: 'Search by name, FRN or phone',
+    placeholder: 'Farmer Registration Number, name, phone',
     autofocus: true,
     onInput: (e) => {
       clearTimeout(debounceTimer);
@@ -57,7 +56,7 @@ export function renderFindFarmer(root, query) {
     root,
     el('a', { href: '#/home', class: 'back-btn' }, '← Back'),
     el('h1', {}, 'Find Farmer'),
-    el('p', { class: 'welcome' }, intent === 'buy' ? 'Find the farmer to record a purchase for.' : 'Search by name, FRN or phone number.'),
+    el('p', { class: 'welcome' }, intent === 'buy' ? 'Find the farmer to record a purchase for.' : 'Find a farmer profile.'),
     el('div', { class: 'field' }, [searchInput]),
     resultsBox
   );

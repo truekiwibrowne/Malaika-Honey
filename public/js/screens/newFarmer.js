@@ -1,6 +1,6 @@
-import { el, mount, setHeaderTitle, toast } from '../lib/ui.js';
+import { el, mount } from '../lib/ui.js';
 import { navigate } from '../router.js';
-import { createFarmer } from '../lib/db.js';
+import { createFarmer, findFarmerByPhone, findFarmerByName } from '../lib/db.js';
 import { DISTRICTS, FARM_SIZES, GENDERS } from '../lib/constants.js';
 
 function choiceGroup(name, options, selectedValue, onSelect) {
@@ -27,7 +27,6 @@ function choiceGroup(name, options, selectedValue, onSelect) {
 }
 
 export function renderNewFarmer(root) {
-  setHeaderTitle('New Farmer');
 
   const state = {
     gender: null,
@@ -109,9 +108,35 @@ export function renderNewFarmer(root) {
         }
         errorBox.hidden = true;
         saveBtn.disabled = true;
-        saveBtn.textContent = 'Saving…';
+        saveBtn.textContent = 'Checking…';
 
         try {
+          const phoneMatch = await findFarmerByPhone(phone);
+          if (phoneMatch) {
+            errorBox.textContent =
+              'A farmer with this phone number is already registered: ' +
+              phoneMatch.fullName + ' (FRN ' + phoneMatch.frn + '). Each phone number can only be registered once — use Find Farmer instead if this is the same person.';
+            errorBox.hidden = false;
+            errorBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            saveBtn.disabled = false;
+            saveBtn.textContent = '✔ Save Farmer';
+            return;
+          }
+
+          const nameMatch = await findFarmerByName(fullName);
+          if (nameMatch) {
+            const proceed = window.confirm(
+              'A farmer named "' + fullName + '" is already registered (FRN ' + nameMatch.frn + '). ' +
+              'Continue creating a separate, new registration for this person?'
+            );
+            if (!proceed) {
+              saveBtn.disabled = false;
+              saveBtn.textContent = '✔ Save Farmer';
+              return;
+            }
+          }
+
+          saveBtn.textContent = 'Saving…';
           const frn = await createFarmer({
             fullName,
             phone,
@@ -175,21 +200,21 @@ export function renderNewFarmer(root) {
     root,
     el('a', { href: '#/home', class: 'back-btn' }, '← Back'),
     el('h1', {}, 'New Farmer'),
+    el('p', { class: 'welcome' }, 'Register a new farmer.'),
     form
   );
 }
 
 export function renderNewFarmerSuccess(root, { frn }) {
-  setHeaderTitle('Farmer Created');
-
   mount(
     root,
     el('div', { class: 'confirm-icon' }, '✔'),
     el('h1', { style: 'text-align:center' }, 'Farmer Created'),
+    el('p', { class: 'welcome', style: 'text-align:center' }, 'Registration complete.'),
     el('div', { class: 'frn-badge', style: 'align-self:center' }, 'FRN ' + frn),
     el('hr', { class: 'hr' }),
     el('a', { href: '#/buy/' + frn, class: 'btn btn-yellow' }, [el('span', { class: 'icon' }, '🍯'), 'Buy Produce']),
-    el('a', { href: '#/card/' + frn, class: 'btn btn-outline' }, [el('span', { class: 'icon' }, '🪪'), 'Print Farmer Card']),
+    el('a', { href: '#/card/' + frn, class: 'btn btn-outline' }, [el('span', { class: 'icon' }, '🪪'), 'Farmer Card']),
     el('a', { href: '#/home', class: 'btn btn-secondary' }, 'Done')
   );
 }

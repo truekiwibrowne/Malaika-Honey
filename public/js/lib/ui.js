@@ -17,12 +17,7 @@ export function el(tag, attrs = {}, children = []) {
 }
 
 export function mount(container, ...nodes) {
-  container.replaceChildren(...nodes);
-}
-
-export function setHeaderTitle(text) {
-  const titleEl = document.getElementById('header-title');
-  if (titleEl) titleEl.textContent = text || '';
+  container.replaceChildren(...nodes.filter((n) => n !== null && n !== undefined && n !== false));
 }
 
 let toastTimer = null;

@@ -18,7 +18,7 @@ Open `http://localhost:5000`. The app auto-detects `localhost` and connects to t
 - [ ] Leave a required field blank (e.g. Full Name) and confirm Save is blocked with a clear message.
 - [ ] Fill in all fields with valid sample data and tap **Save Farmer**.
 - [ ] Confirm the success screen shows a newly generated FRN in the `MH######` format, and that it is one greater than the previous FRN issued in this test run.
-- [ ] From the success screen, confirm all three shortcut actions are present and work: **Buy Produce**, **Print Farmer Card**, **Done**.
+- [ ] From the success screen, confirm all three shortcut actions are present and work: **Buy Produce**, **Farmer Card**, **Done**.
 - [ ] Reopen the app (or Find Farmer) and confirm the new farmer is retrievable by name, FRN, and phone number.
 
 ### 2. Find Farmer
@@ -40,10 +40,11 @@ Open `http://localhost:5000`. The app auto-detects `localhost` and connects to t
 - [ ] Confirm the purchase now appears at the top of that farmer's **History** screen with correct date, product, weight, and total.
 - [ ] Confirm the Farmer Profile's lifetime totals (honey kg, total paid, last delivery) updated correctly after the purchase.
 
-### 4. Printable ID card
-- [ ] From a Farmer Profile, open the printable card view.
-- [ ] Confirm FRN, name, village/district, and phone are legible and correctly populated.
-- [ ] Confirm the card renders sensibly when sent to Print (browser print preview) — no cut-off content.
+### 4. Farmer ID card (PDF)
+- [ ] From a Farmer Profile, open the Farmer Card view.
+- [ ] Confirm the on-screen preview shows FRN, name, village/district, and phone correctly.
+- [ ] Tap **Download PDF** and confirm a `<FRN>-malaika-honey-card.pdf` file downloads (CR80 card-sized, landscape) with the same details legible on a maroon background.
+- [ ] Confirm it works without a printer connected (this is a client-side PDF generation, not a print-dialog flow).
 
 ### 5. Offline behavior (critical — test on every release that touches data writes)
 - [ ] Load the app once while online (so the shell is cached).

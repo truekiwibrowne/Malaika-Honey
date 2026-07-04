@@ -88,6 +88,28 @@ export async function getFarmerByFrn(frn) {
 }
 
 /**
+ * Exact-match phone lookup, used to block registering the same phone
+ * number twice (see docs/Admin-User-Manual.md and Backlog 2.4).
+ */
+export async function findFarmerByPhone(phone) {
+  const q = query(collection(db, 'farmers'), where('phone', '==', phone.trim()), limit(1));
+  const snap = await getDocs(q);
+  return snap.empty ? null : snap.docs[0].data();
+}
+
+/**
+ * Exact-match name lookup (case-insensitive), used to warn (not block)
+ * when registering a farmer whose name already exists - farmers can
+ * share a name but not a phone number.
+ */
+export async function findFarmerByName(fullName) {
+  const lower = fullName.trim().toLowerCase();
+  const q = query(collection(db, 'farmers'), where('fullNameLower', '==', lower), limit(1));
+  const snap = await getDocs(q);
+  return snap.empty ? null : snap.docs[0].data();
+}
+
+/**
  * Search by FRN (direct lookup), phone (exact match), or name (prefix
  * match on fullNameLower). Firestore has no full-text search, so name
  * search is a startsWith-style range query - good enough for staff typing

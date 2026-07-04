@@ -15,6 +15,12 @@
         "source": "**",
         "destination": "/index.html"
       }
+    ],
+    "headers": [
+      {
+        "source": "**/*.@(js|css|html|webmanifest)",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      }
     ]
   },
   "emulators": {
@@ -22,6 +28,7 @@
       "port": 8080
     },
     "hosting": {
+      "host": "0.0.0.0",
       "port": 5050
     },
     "ui": {

@@ -27,7 +27,7 @@ This backlog is a living document — update it as priorities shift. See [[Chang
 | 2.1 | Staff login (Firebase Auth, phone or PIN-based — no passwords to type on cheap phones) | Needed before multiple staff/centres share one deployment with accountability |
 | 2.2 | Firestore Security Rules locked down to authenticated staff only | Currently open rules for MVP speed — see [[Risk-Register]] |
 | 2.3 | Multi-centre support (`centre` field already reserved in schema) | So HQ can see which buying centre recorded what |
-| 2.4 | Duplicate-farmer detection (same phone/name registered twice) | Common with paper-to-digital transitions |
+| 2.4 | ~~Duplicate-farmer detection (same phone/name registered twice)~~ | ✅ Done in 0.2.0 — phone blocks, name warns via confirm dialog (application-level check, not a DB constraint — see [[Database-Schema]] and Risk R13) |
 | 2.5 | Farmer photo capture on registration (device camera → Firebase Storage) | `photoUrl` field already reserved |
 | 2.6 | Edit/void a purchase (with audit trail, not silent overwrite) | Needed for correcting mis-entered weights |
 | 2.7 | App Check to stop unauthorized use of the Firebase project | See [[Risk-Register]] |
