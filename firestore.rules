@@ -1,0 +1,33 @@
+rules_version = '2';
+
+// MVP rules: no staff login yet (see docs/Backlog.md Milestone 2 and
+// docs/Risk-Register.md R1). Access is restricted to the known
+// collections/shapes this app uses, rather than left fully open, as a
+// minimum safety net until Firebase Auth is added.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /farmers/{frn} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasAll(['frn', 'fullName', 'phone']);
+      allow update: if true;
+      allow delete: if false;
+    }
+
+    match /purchases/{purchaseId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasAll(['frn', 'product', 'weightKg', 'totalUgx']);
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    match /counters/{counterId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

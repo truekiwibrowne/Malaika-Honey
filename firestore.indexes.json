@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "purchases",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "frn", "order": "ASCENDING" },
+        { "fieldPath": "purchaseDate", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

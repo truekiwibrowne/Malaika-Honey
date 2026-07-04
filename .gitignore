@@ -1,0 +1,12 @@
+.DS_Store
+node_modules/
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+*.log
+public/js/config/firebase.config.js
+.env
+.env.local
+~$*
+.tools/

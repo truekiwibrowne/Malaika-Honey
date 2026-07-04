@@ -1,0 +1,22 @@
+# Risk Register — Malaika Honey FRM
+
+Likelihood/Impact rated Low/Medium/High. Review this list at the start of each new milestone (see [[Backlog]]) and after any incident.
+
+| ID | Risk | Likelihood | Impact | Mitigation | Owner |
+|---|---|---|---|---|---|
+| R1 | Open Firestore Security Rules (no auth in v1) allow anyone with the project config to read/write farmer and purchase data if the config leaks or is guessed | Medium | High | Rules restrict to known document shapes for now; add Firebase Auth + locked-down rules before wide rollout ([[Backlog]] 2.1–2.2); avoid publicizing the Firebase project ID unnecessarily | Dev lead |
+| R2 | Field device lost/stolen with offline-queued, unsynced purchase or registration data | Medium | Medium | Firestore's offline queue is local to the device; encourage staff to sync (bring device online) before end of day; consider device-level PIN lock as a stopgap until app-level login exists | Ops manager |
+| R3 | Two staff register a farmer or record a purchase simultaneously while both offline, then reconnect — risk of duplicate FRN or conflicting writes | Low | Medium | FRN issuance uses a Firestore transaction on the shared counter, which Firestore resolves safely on sync even across devices; purchases are additive (new documents, not shared-counter based) so they don't conflict | Dev lead |
+| R4 | Poor/no mobile network at buying centres prevents timely sync, delaying visibility of purchases to management | High | Low | This is the expected normal case, not a failure — the app is designed offline-first; management reporting should assume a sync lag, not real-time data ([[System-Architecture]]) | Ops manager |
+| R5 | Staff mis-key weight, price, or grade with no edit/void flow in v1 | Medium | Medium | Emphasize double-checking the total before saving in [[Admin-User-Manual]]; add edit/void with audit trail in [[Backlog]] 2.6 | Dev lead |
+| R6 | Sensitive personal data (farmer name, phone, location, income) held without explicit data-protection/consent language, ahead of any NGO data-sharing | Medium | High | Registration agreement (Section D of the paper form) should be extended to cover data use for M&E/reporting purposes before that data is shared externally; consult Uganda's Data Protection and Privacy Act 2019 requirements before any external data export | Management |
+| R7 | Low-end Android phones / weak connections make the app feel slow or fail to load if it grows beyond a lightweight static app | Low | Medium | Deliberately avoided frameworks/build tooling; kept bundle minimal (see [[System-Architecture]]); test on real low-end hardware before each release ([[Release-Management]]) | Dev lead |
+| R8 | Firebase free-tier quota (Spark plan) exceeded as farmer/purchase volume grows, causing writes to fail | Low | Medium | Monitor usage in Firebase Console; budget for Blaze (pay-as-you-go) plan before quotas are likely to be hit; Blaze still has a generous free allotment | Ops manager |
+| R9 | Sole reliance on one developer's knowledge of the system (bus factor) | Medium | High | This documentation set ([[System-Architecture]], [[Database-Schema]], [[Config-Management]]) exists specifically to reduce this; keep it updated as the app changes | Management |
+| R10 | No automated backups of Firestore data | Low | High | Schedule periodic manual exports (Console → Firestore → Import/Export to Cloud Storage) until volume/importance justifies automating; treat data loss as a business-continuity risk given this is the farmer payment record of truth | Ops manager |
+| R11 | Currency assumption (UGX only, no decimals) breaks if Malaika expands to export pricing in USD or another currency | Low | Low | Currency handling is centralized in `public/js/lib/constants.js` / formatting utils, not scattered — a currency field can be added without a full rewrite | Dev lead |
+| R12 | Printable farmer ID card contains personal data (name, FRN, phone) and could be lost/copied, enabling fraud (someone else presenting a farmer's card) | Low | Medium | Buying centre staff should visually confirm the person matches registration details on file (and, once added, the photo — [[Backlog]] 2.5) before processing a purchase against a presented card | Ops manager |
+
+## Review cadence
+
+Revisit this register at minimum every milestone boundary in [[Backlog]], and immediately after any security incident, data loss event, or before agreeing to share data externally with an NGO/development partner.
