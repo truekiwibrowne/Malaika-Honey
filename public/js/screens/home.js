@@ -8,11 +8,9 @@ export function renderHome(root) {
     el('p', { class: 'welcome' }, 'What would you like to do?'),
     el('hr', { class: 'hr' }),
     el('div', { class: 'home-buttons' }, [
-      el(
-        'a',
-        { href: '#/find-farmer', class: 'btn btn-blue' },
-        [el('span', { class: 'icon' }, '🔍'), 'Find Farmer']
-      ),
+      // Find Farmer button hidden for now (not useful enough on its own yet
+      // - staff reach the same search screen via Buy Produce). The
+      // #/find-farmer route and screen are untouched so this can come back.
       el(
         'a',
         { href: '#/new-farmer', class: 'btn btn-maroon' },

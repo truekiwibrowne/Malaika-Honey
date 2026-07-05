@@ -1,6 +1,7 @@
 import './lib/firebase.js';
 import { addRoute, startRouter } from './router.js';
 import { initOfflineBanner } from './lib/ui.js';
+import { warmOfflineCache } from './lib/db.js';
 
 import { renderHome } from './screens/home.js';
 import { renderNewFarmer, renderNewFarmerSuccess } from './screens/newFarmer.js';
@@ -23,4 +24,5 @@ addRoute('/history/:frn', (params) => renderHistory(root, params));
 addRoute('/card/:frn', (params) => renderCard(root, params));
 
 initOfflineBanner();
+warmOfflineCache();
 startRouter();

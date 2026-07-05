@@ -83,7 +83,7 @@ Single document holding the sequence used to mint new FRNs.
 |---|---|---|
 | `lastValue` | number | Last FRN sequence number issued (e.g. `4826`) |
 
-FRN format: `MH` + `lastValue` zero-padded to 6 digits, e.g. `MH004826`. Incrementing and reading `lastValue` happens inside a Firestore transaction together with the `farmers/{frn}` document creation, so two staff members registering farmers at the same moment (even offline, on reconnect) can never be issued the same FRN.
+FRN format: `MH` + `lastValue` zero-padded to 6 digits, e.g. `MH004826`. When online, incrementing and reading `lastValue` happens inside a Firestore transaction together with the `farmers/{frn}` document creation, so two staff members registering farmers at the same moment can never be issued the same FRN. Transactions require a live connection, though, so `createFarmer()` falls back to a non-transactional batched write off the locally cached counter value when offline (see [[System-Architecture]] "Offline behavior in detail") — this keeps registration working with no signal, at the cost of a rare cross-device FRN collision if two devices happen to register offline at the exact same moment (see [[Risk-Register]] R3).
 
 ### `products`, `grades`, `paymentMethods` (reference collections, optional/future)
 

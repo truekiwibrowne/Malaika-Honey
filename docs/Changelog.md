@@ -4,7 +4,11 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+- New Farmer registration and Buy Produce previously relied entirely on Firestore transactions, which require a live connection and reject when the device is offline — meaning offline registration/purchases actually failed rather than being queued as intended. Both now try the transactional path first (safe under concurrent online use) and fall back to a locally-cached, fire-and-forget batched write when offline or when the transaction can't complete, so records are genuinely cached on-device and sync automatically once connectivity returns.
+
+### Changed
+- Hid the "Find Farmer" button on the Home screen (not useful enough as a standalone action yet). The route, screen, and its use inside the Buy Produce flow are unchanged.
 
 ## [0.2.0] - 2026-07-04
 

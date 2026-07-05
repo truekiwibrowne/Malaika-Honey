@@ -10,6 +10,7 @@ import {
   limit,
   getDocs,
   runTransaction,
+  writeBatch,
   serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { db } from './firebase.js';
@@ -27,11 +28,62 @@ function looksLikeFrn(value) {
 }
 
 /**
- * Creates a new farmer document and mints its FRN in a single transaction,
- * so two staff registering at the same moment can never collide
- * (see docs/Database-Schema.md "counters/frnCounter").
+ * Fetches the FRN counter once at app start (best-effort, errors ignored)
+ * so it's present in the local cache before staff head somewhere offline.
+ * getDoc() throws rather than returning "not found" for a document that's
+ * never been cached and there's no connection - without this warm-up,
+ * offline farmer registration would fail on any device that hadn't already
+ * created a farmer online at least once (see createFarmerOffline() below).
  */
-export async function createFarmer(farmerInput) {
+export function warmOfflineCache() {
+  getDoc(doc(db, 'counters', 'frnCounter')).catch(() => {});
+}
+
+function buildFarmerDoc(frn, farmerInput) {
+  return {
+    schemaVersion: 1,
+    frn,
+    fullName: farmerInput.fullName,
+    fullNameLower: farmerInput.fullName.trim().toLowerCase(),
+    dateOfBirth: farmerInput.dateOfBirth || null,
+    gender: farmerInput.gender || null,
+    phone: farmerInput.phone,
+    email: farmerInput.email || null,
+    village: farmerInput.village,
+    district: farmerInput.district,
+    farmSize: farmerInput.farmSize || null,
+    hives: {
+      traditional: Number(farmerInput.hivesTraditional) || 0,
+      ktb: Number(farmerInput.hivesKtb) || 0,
+      modern: Number(farmerInput.hivesModern) || 0,
+    },
+    otherCropsOrLivestock: farmerInput.otherCropsOrLivestock || '',
+    avgHarvestKgPerYear: Number(farmerInput.avgHarvestKgPerYear) || 0,
+    usesChemicals: !!farmerInput.usesChemicals,
+    wantsTraining: !!farmerInput.wantsTraining,
+    signatureDate: farmerInput.signatureDate || todayIso(),
+    photoUrl: null,
+    status: 'active',
+    registeredBy: farmerInput.registeredBy || 'Field App',
+    registeredAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    lifetimeStats: {
+      totalKg: 0,
+      totalPaidUgx: 0,
+      lastPurchaseAt: null,
+    },
+  };
+}
+
+/**
+ * Online path: mints the FRN and creates the farmer inside a Firestore
+ * transaction so two staff registering at the same moment can never
+ * collide (see docs/Database-Schema.md "counters/frnCounter"). Transactions
+ * require a live round trip to the backend and reject if the device has no
+ * connection, so createFarmer() below falls back to createFarmerOffline()
+ * whenever this fails.
+ */
+async function createFarmerOnline(farmerInput) {
   const counterRef = doc(db, 'counters', 'frnCounter');
 
   const frn = await runTransaction(db, async (tx) => {
@@ -41,44 +93,70 @@ export async function createFarmer(farmerInput) {
     const farmerRef = doc(db, 'farmers', newFrn);
 
     tx.set(counterRef, { lastValue: nextValue });
-    tx.set(farmerRef, {
-      schemaVersion: 1,
-      frn: newFrn,
-      fullName: farmerInput.fullName,
-      fullNameLower: farmerInput.fullName.trim().toLowerCase(),
-      dateOfBirth: farmerInput.dateOfBirth || null,
-      gender: farmerInput.gender || null,
-      phone: farmerInput.phone,
-      email: farmerInput.email || null,
-      village: farmerInput.village,
-      district: farmerInput.district,
-      farmSize: farmerInput.farmSize || null,
-      hives: {
-        traditional: Number(farmerInput.hivesTraditional) || 0,
-        ktb: Number(farmerInput.hivesKtb) || 0,
-        modern: Number(farmerInput.hivesModern) || 0,
-      },
-      otherCropsOrLivestock: farmerInput.otherCropsOrLivestock || '',
-      avgHarvestKgPerYear: Number(farmerInput.avgHarvestKgPerYear) || 0,
-      usesChemicals: !!farmerInput.usesChemicals,
-      wantsTraining: !!farmerInput.wantsTraining,
-      signatureDate: farmerInput.signatureDate || todayIso(),
-      photoUrl: null,
-      status: 'active',
-      registeredBy: farmerInput.registeredBy || 'Field App',
-      registeredAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      lifetimeStats: {
-        totalKg: 0,
-        totalPaidUgx: 0,
-        lastPurchaseAt: null,
-      },
-    });
+    tx.set(farmerRef, buildFarmerDoc(newFrn, farmerInput));
 
     return newFrn;
   });
 
+  // Transactions commit straight to the backend and do not update the local
+  // persistent cache the way a plain read/write does. Re-reading the
+  // counter here (while still online) is what makes createFarmerOffline()
+  // able to mint the next FRN from cache later in this same session.
+  getDoc(counterRef).catch(() => {});
+
   return frn;
+}
+
+/**
+ * Offline path: Firestore transactions can't complete without a live
+ * connection, so this mints the next FRN from the locally cached counter
+ * (including this device's own not-yet-synced writes, which Firestore
+ * applies to the local cache immediately) and queues a plain batched
+ * write instead. The commit is intentionally *not* awaited to completion:
+ * Firestore only resolves a write's promise once the server acknowledges
+ * it, so awaiting it here would hang the UI until connectivity returns.
+ * The local queue persists the write durably and syncs it automatically
+ * (see docs/System-Architecture.md "Offline behavior in detail"). This
+ * accepts a known, low-probability edge case: two devices registering
+ * offline at the same moment could mint the same FRN (see
+ * docs/Risk-Register.md R3).
+ */
+function createFarmerOffline(farmerInput) {
+  const counterRef = doc(db, 'counters', 'frnCounter');
+
+  return getDoc(counterRef).catch(() => {
+    // getDoc() throws (rather than resolving "not found") when this exact
+    // document has never been fetched into the local cache and the device
+    // has no connection right now - there's no locally known FRN sequence
+    // to work from in that case.
+    throw new Error(
+      'Cannot register a new farmer while offline on a device that has never connected to the internet in this app. Connect to the internet briefly, then try again.'
+    );
+  }).then((counterSnap) => {
+    const nextValue = (counterSnap.exists() ? counterSnap.data().lastValue : 0) + 1;
+    const frn = formatFrn(nextValue);
+    const farmerRef = doc(db, 'farmers', frn);
+
+    const batch = writeBatch(db);
+    batch.set(counterRef, { lastValue: nextValue });
+    batch.set(farmerRef, buildFarmerDoc(frn, farmerInput));
+    batch
+      .commit()
+      .catch((err) => console.error('[Malaika Honey] Farmer ' + frn + ' failed to sync', err));
+
+    return frn;
+  });
+}
+
+export async function createFarmer(farmerInput) {
+  if (navigator.onLine) {
+    try {
+      return await createFarmerOnline(farmerInput);
+    } catch (err) {
+      console.warn('[Malaika Honey] Online registration failed, queuing offline instead', err);
+    }
+  }
+  return createFarmerOffline(farmerInput);
 }
 
 export async function getFarmerByFrn(frn) {
@@ -135,7 +213,7 @@ export async function searchFarmers(rawQuery) {
     collection(db, 'farmers'),
     orderBy('fullNameLower'),
     where('fullNameLower', '>=', lower),
-    where('fullNameLower', '<=', lower + ''),
+    where('fullNameLower', '<=', lower + ''),
     limit(15)
   );
   const nameSnap = await getDocs(nameQuery);
@@ -144,11 +222,42 @@ export async function searchFarmers(rawQuery) {
   return Array.from(results.values());
 }
 
+function buildPurchaseDoc(purchaseInput, farmer) {
+  return {
+    schemaVersion: 1,
+    frn: purchaseInput.frn,
+    farmerNameSnapshot: farmer.fullName,
+    product: purchaseInput.product,
+    weightKg: Number(purchaseInput.weightKg),
+    grade: purchaseInput.grade,
+    pricePerKgUgx: Number(purchaseInput.pricePerKgUgx),
+    totalUgx: Number(purchaseInput.totalUgx),
+    paymentMethod: purchaseInput.paymentMethod,
+    receiptNo: purchaseInput.receiptNo || '',
+    purchaseDate: purchaseInput.purchaseDate || todayIso(),
+    centre: null,
+    recordedBy: purchaseInput.recordedBy || 'Field App',
+    createdAt: serverTimestamp(),
+    syncedFromOffline: !navigator.onLine,
+  };
+}
+
+function nextLifetimeStats(farmer, purchaseInput) {
+  const stats = farmer.lifetimeStats || { totalKg: 0, totalPaidUgx: 0, lastPurchaseAt: null };
+  return {
+    totalKg: (stats.totalKg || 0) + Number(purchaseInput.weightKg),
+    totalPaidUgx: (stats.totalPaidUgx || 0) + Number(purchaseInput.totalUgx),
+    lastPurchaseAt: purchaseInput.purchaseDate || todayIso(),
+  };
+}
+
 /**
- * Records a purchase and updates the farmer's denormalized lifetime stats
- * in one transaction (see docs/Database-Schema.md "Why denormalize").
+ * Online path: records a purchase and updates the farmer's denormalized
+ * lifetime stats in one Firestore transaction (see docs/Database-Schema.md
+ * "Why denormalize"). Requires a live connection - savePurchase() below
+ * falls back to savePurchaseOffline() whenever this fails.
  */
-export async function savePurchase(purchaseInput) {
+async function savePurchaseOnline(purchaseInput) {
   const farmerRef = doc(db, 'farmers', purchaseInput.frn);
   const purchaseRef = doc(collection(db, 'purchases'));
 
@@ -158,37 +267,70 @@ export async function savePurchase(purchaseInput) {
       throw new Error('Farmer not found for FRN ' + purchaseInput.frn);
     }
     const farmer = farmerSnap.data();
-    const stats = farmer.lifetimeStats || { totalKg: 0, totalPaidUgx: 0, lastPurchaseAt: null };
 
-    tx.set(purchaseRef, {
-      schemaVersion: 1,
-      frn: purchaseInput.frn,
-      farmerNameSnapshot: farmer.fullName,
-      product: purchaseInput.product,
-      weightKg: Number(purchaseInput.weightKg),
-      grade: purchaseInput.grade,
-      pricePerKgUgx: Number(purchaseInput.pricePerKgUgx),
-      totalUgx: Number(purchaseInput.totalUgx),
-      paymentMethod: purchaseInput.paymentMethod,
-      receiptNo: purchaseInput.receiptNo || '',
-      purchaseDate: purchaseInput.purchaseDate || todayIso(),
-      centre: null,
-      recordedBy: purchaseInput.recordedBy || 'Field App',
-      createdAt: serverTimestamp(),
-      syncedFromOffline: !navigator.onLine,
-    });
-
+    tx.set(purchaseRef, buildPurchaseDoc(purchaseInput, farmer));
     tx.update(farmerRef, {
-      lifetimeStats: {
-        totalKg: (stats.totalKg || 0) + Number(purchaseInput.weightKg),
-        totalPaidUgx: (stats.totalPaidUgx || 0) + Number(purchaseInput.totalUgx),
-        lastPurchaseAt: purchaseInput.purchaseDate || todayIso(),
-      },
+      lifetimeStats: nextLifetimeStats(farmer, purchaseInput),
       updatedAt: serverTimestamp(),
     });
   });
 
+  // As in createFarmerOnline() above: transaction commits don't refresh the
+  // local cache, so re-read the farmer here (while still online) or a later
+  // offline purchase in this session would compute lifetimeStats from
+  // stale, pre-purchase totals.
+  getDoc(farmerRef).catch(() => {});
+
   return purchaseRef.id;
+}
+
+/**
+ * Offline path: same as savePurchaseOnline but via a plain batched write
+ * read from the local cache, with the commit fired-and-forgotten rather
+ * than awaited (see createFarmerOffline() above for why). The farmer doc
+ * is normally already cached by this point since Buy Produce loads it via
+ * getFarmerByFrn() before the form is shown.
+ */
+function savePurchaseOffline(purchaseInput) {
+  const farmerRef = doc(db, 'farmers', purchaseInput.frn);
+  const purchaseRef = doc(collection(db, 'purchases'));
+
+  return getDoc(farmerRef).then((farmerSnap) => {
+    if (!farmerSnap.exists()) {
+      throw new Error('Farmer not found for FRN ' + purchaseInput.frn);
+    }
+    const farmer = farmerSnap.data();
+
+    const batch = writeBatch(db);
+    batch.set(purchaseRef, buildPurchaseDoc(purchaseInput, farmer));
+    batch.update(farmerRef, {
+      lifetimeStats: nextLifetimeStats(farmer, purchaseInput),
+      updatedAt: serverTimestamp(),
+    });
+    batch
+      .commit()
+      .catch((err) => console.error('[Malaika Honey] Purchase ' + purchaseRef.id + ' failed to sync', err));
+
+    return purchaseRef.id;
+  });
+}
+
+/**
+ * Records a purchase and updates the farmer's denormalized lifetime stats.
+ * Tries the transactional online path first (safest under concurrency);
+ * falls back to the offline-safe queued path when there's no connection or
+ * the online attempt fails for any reason (including a genuinely missing
+ * farmer, which the offline path also checks and reports the same way).
+ */
+export async function savePurchase(purchaseInput) {
+  if (navigator.onLine) {
+    try {
+      return await savePurchaseOnline(purchaseInput);
+    } catch (err) {
+      console.warn('[Malaika Honey] Online purchase failed, queuing offline instead', err);
+    }
+  }
+  return savePurchaseOffline(purchaseInput);
 }
 
 export async function getPurchaseHistory(frn) {
