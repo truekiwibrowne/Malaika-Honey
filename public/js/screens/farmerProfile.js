@@ -1,6 +1,7 @@
 import { el, mount } from '../lib/ui.js';
 import { getFarmerByFrn } from '../lib/db.js';
 import { formatUgx, formatDate } from '../lib/constants.js';
+import { iconEl } from '../lib/icons.js';
 
 export async function renderFarmerProfile(root, { frn }) {
   mount(root, el('p', { class: 'hint' }, 'Loading farmer…'));
@@ -10,7 +11,6 @@ export async function renderFarmerProfile(root, { frn }) {
   if (!farmer) {
     mount(
       root,
-      el('a', { href: '#/find-farmer', class: 'back-btn' }, '← Back'),
       el('div', { class: 'empty-state' }, 'Farmer ' + frn + ' was not found on this device. Reconnect to the internet and try again.')
     );
     return;
@@ -20,7 +20,6 @@ export async function renderFarmerProfile(root, { frn }) {
 
   mount(
     root,
-    el('a', { href: '#/find-farmer', class: 'back-btn' }, '← Back'),
     el('h1', {}, farmer.fullName),
     el('p', { class: 'welcome' }, 'Farmer profile.'),
     el('div', { class: 'frn-badge' }, 'FRN ' + farmer.frn),
@@ -53,8 +52,8 @@ export async function renderFarmerProfile(root, { frn }) {
 
     el('div', { class: 'spacer' }),
 
-    el('a', { href: '#/buy/' + farmer.frn, class: 'btn btn-yellow' }, [el('span', { class: 'icon' }, '🍯'), 'Buy Produce']),
-    el('a', { href: '#/history/' + farmer.frn, class: 'btn btn-blue' }, [el('span', { class: 'icon' }, '📜'), 'History']),
-    el('a', { href: '#/card/' + farmer.frn, class: 'btn btn-outline' }, [el('span', { class: 'icon' }, '🪪'), 'Farmer Card'])
+    el('a', { href: '#/buy/' + farmer.frn, class: 'btn btn-yellow' }, [iconEl('honeyJar'), 'Buy Produce']),
+    el('a', { href: '#/history/' + farmer.frn, class: 'btn btn-blue' }, [iconEl('history'), 'History']),
+    el('a', { href: '#/card/' + farmer.frn, class: 'btn btn-outline' }, [iconEl('idCard'), 'Farmer Card'])
   );
 }

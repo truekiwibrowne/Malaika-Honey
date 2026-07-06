@@ -7,9 +7,9 @@ Malaika Honey needs a Farmer Relationship Manager (FRM): a system that registers
 ## Guiding constraints (from the field brief)
 
 - Used on inexpensive Android phones, in the field or at buying centres, often with **poor or no internet connectivity**.
-- Must work **offline with automatic sync** when a connection returns.
+- Must work **offline with automatic sync** when a connection returns — including registering a brand-new farmer and recording a purchase against an FRN the device has never seen before.
 - Staff record a purchase in **at most 3 taps** after selecting a farmer — the architecture must not add network round-trips that slow that down.
-- No login required for v1, but the design must not block adding one later.
+- Every staff member signs in individually, for accountability, but a one-time sign-in while online must be enough to keep working fully offline afterward — the app must never force a re-login just because there's no signal.
 - Data must remain queryable for years and exportable for M&E — it is the company's core operating record, not a throwaway app database.
 
 ## High-level architecture
@@ -20,12 +20,16 @@ Malaika Honey needs a Farmer Relationship Manager (FRM): a system that registers
 │                              │
 │   Mobile Web App (PWA)      │
 │   HTML / CSS / vanilla JS    │
-│   - Home / Find / Register / │
-│     Buy Produce / History    │
+│   - Login / Tutorial / Home /│
+│     Existing/New Farmer /    │
+│     Buy Produce / History /  │
+│     Reconcile                │
 │   - Firestore offline cache  │
 │     (IndexedDB, built-in)    │
+│   - Auth session persisted   │
+│     locally (offline sign-in)│
 └───────────────┬──────────────┘
-                │ HTTPS (Firestore SDK)
+                │ HTTPS (Firestore + Auth SDKs)
                 │ queues writes while offline,
                 │ syncs automatically on reconnect
                 ▼
@@ -34,10 +38,11 @@ Malaika Honey needs a Farmer Relationship Manager (FRM): a system that registers
 │                              │
 │  Cloud Firestore             │  ← single source of truth
 │  (farmers, purchases,        │
-│   counters)                  │
+│   devices)                   │
 │                              │
+│  Firebase Authentication      │  ← staff accounts
 │  Firebase Hosting             │  ← serves the static app
-│  Firestore Security Rules     │
+│  Firestore Security Rules     │  ← require request.auth != null
 └───────────────┬──────────────┘
                 │
                 ▼
@@ -52,7 +57,8 @@ Malaika Honey needs a Farmer Relationship Manager (FRM): a system that registers
 
 - **Static HTML/CSS/JS, no build step, no framework runtime dependency.** The brief calls for "simple." A framework (React/Vue) adds a build pipeline and bundle weight that buys nothing for 3 screens and increases the barrier to a second developer picking this up later. The app is structured as a single-page shell (`index.html`) with plain ES modules per screen, so it stays simple to read but doesn't sprawl into unmaintainable spaghetti — see `public/js/screens/`.
 - **Firebase Firestore, not a custom backend.** Firestore's client SDK has **offline persistence built in** (local IndexedDB cache + automatic write queue + sync on reconnect) — this is exactly the offline requirement, for free, without writing a custom sync engine. A custom Node/Express + Postgres backend would require building offline queuing and conflict resolution from scratch, which is a much bigger and riskier undertaking for a small team.
-- **No server-side code (no Cloud Functions) in v1.** FRN generation and lifetime-stat totals are handled with Firestore transactions directly from the client (see [[Database-Schema]]). This keeps hosting free-tier-friendly and avoids a deployment target beyond static hosting. Cloud Functions can be introduced later (e.g. for SMS receipts, scheduled M&E exports) without changing the client architecture.
+- **No server-side code (no Cloud Functions) in v1.** FRN generation is entirely client-side (device code + local sequence) and lifetime-stat totals are updated via Firestore `increment()` FieldValues from the client (see [[Database-Schema]]) — deliberately **not** Firestore transactions, since transactions fail immediately when offline instead of queuing, which would break the offline requirement above. This keeps hosting free-tier-friendly and avoids a deployment target beyond static hosting. Cloud Functions can be introduced later (e.g. for SMS receipts, scheduled M&E exports) without changing the client architecture.
+- **Firebase Authentication, not a custom login system.** Individual username/password accounts (mapped to a synthetic email so staff don't need real email addresses) give per-record accountability (`registeredBy`/`recordedBy`) without building session management from scratch. The SDK's local session persistence is what makes "sign in once online, then work offline indefinitely" possible.
 - **Firebase Hosting or Netlify for the static site.** Both are equivalent for this app (it's just static files); Firebase Hosting is the natural default since the database is already on Firebase, but Netlify remains a valid drop-in alternative (see [[Release-Management]]) since there's no server-side coupling.
 - **GitHub for source control**, deploys triggered from the `main` branch (see [[Release-Management]]).
 
@@ -60,7 +66,7 @@ Malaika Honey needs a Farmer Relationship Manager (FRM): a system that registers
 
 The brief separates concerns into two apps sharing the same Firestore database:
 
-1. **Field app (this build, v1)** — mobile-first, 3 screens (Find Farmer, New Farmer, Buy Produce), designed for buying-centre staff. Read/write access to `farmers` and `purchases`.
+1. **Field app (this build, v1)** — mobile-first (Login, Tutorial, Home, Existing Farmer, New Farmer, Buy Produce, History, Farmer Card, Reconcile), designed for buying-centre staff. Read/write access to `farmers`, `purchases`, and `devices`, gated by Firebase Auth.
 2. **Admin/management app (future)** — desktop-focused, for reporting, data correction, M&E exports (Excel), and eventually managing training/incentive/hive-visit data. Reads the same collections; no schema changes needed to start it, since Firestore is schemaless and the admin app can simply add new collections (`trainings`, `hiveVisits`, etc. — see [[Database-Schema]]) without migrating the field app.
 
 Splitting them into two deployable apps (rather than one app with hidden admin routes) keeps the field app's bundle and permissions minimal, which matters for load speed on cheap Android phones and for keeping the attack surface small before Auth is added.
@@ -69,9 +75,12 @@ Splitting them into two deployable apps (rather than one app with hidden admin r
 
 Firestore's JS SDK is configured with persistent local cache (`persistentLocalCache`) on app start (`public/js/lib/firebase.js`). This means:
 
-- Reads (e.g. "find farmer") are served from the local cache instantly if the farmer was previously synced; if never seen on this device and offline, the search returns nothing until reconnect — communicated in the UI rather than left ambiguous.
-- Writes (new farmer, new purchase) are applied to the local cache immediately (so staff see instant confirmation and get the FRN/receipt right away) and queued for upload. When the device regains connectivity, Firestore uploads the queue automatically — no custom code required.
-- The FRN counter transaction and lifetime-stat transaction still work offline: Firestore resolves transactions against the local cache and replays them safely on sync, since transactions are per-document and FRNs are only ever issued by one device's queued write at a time reaching the server in order. (See [[Risk-Register]] for the rare multi-device-offline-simultaneously edge case and its mitigation.)
+- Reads (e.g. "existing farmer" search) are served from the local cache instantly if the farmer was previously synced; if never seen on this device and offline, the search returns nothing until reconnect — communicated in the UI rather than left ambiguous. Any read that must never hang waiting on a network round-trip (Buy Produce's farmer lookup, in particular) uses `getDocFromCache` rather than `getDoc` — `getDoc` can wait indefinitely offline for a document that isn't cached, while `getDocFromCache` always resolves quickly, cached or not.
+- Writes (new farmer, new purchase) are applied to the local cache immediately (so staff see instant confirmation and get the FRN/receipt right away) and queued for upload via plain `setDoc`/`updateDoc` calls, fired without being awaited — those promises only resolve once the server acknowledges the write, which never happens offline, so awaiting them directly would hang the UI. When the device regains connectivity, Firestore uploads the queue automatically — no custom code required. A shared `trackWrite()` helper (`public/js/lib/sync.js`) tracks how many of these are still in flight, which drives the header's sync badge (Synced / Not Synced / Offline).
+- **Firestore transactions (`runTransaction`) are deliberately not used anywhere in this app.** An earlier design used a transaction to mint each FRN from a shared counter and another to update a farmer's lifetime stats atomically alongside each purchase — both were found (via Firebase's own documented behavior, confirmed empirically) to **fail immediately when offline** rather than queuing like ordinary writes, which directly broke the offline requirement. Both were replaced:
+  - **FRN minting** is now entirely client-side: a random 3-character device code (generated once, cached in `localStorage`) plus a local sequence number, so two devices can never collide by construction and no server round-trip is ever needed (see [[Database-Schema]] `devices/{deviceCode}`).
+  - **Lifetime-stat updates** use Firestore `increment()` FieldValues via a plain `updateDoc` — safe to apply without reading the current value first, so it queues and applies correctly offline, unlike a transactional read-modify-write. If the farmer isn't recognized in the local cache at the time a purchase is saved, the stats update is deferred (not guessed) until the purchase is reconciled to the correct farmer via `/reconcile`.
+- **Auth sessions persist locally** (`browserLocalPersistence`), and the app waits for the first `onAuthStateChanged` callback (which fires even fully offline, from the cached session) before deciding whether to show the login screen — so a staff member who has signed in at least once while online is never blocked from using the app offline afterward.
 
 ## M&E data flow (future)
 
@@ -87,6 +96,6 @@ Because every record is keyed by FRN and timestamped, the admin app (or even a s
 
 ## Non-goals for v1
 
-- No user accounts/login (tracked in [[Backlog]]).
+- Role-based permissions — every signed-in staff account currently has identical Firestore access (tracked in [[Backlog]] 2.12).
 - No push notifications, SMS, or payments integration.
 - No native mobile app — the PWA approach is intentional to avoid app-store distribution friction in rural Uganda.

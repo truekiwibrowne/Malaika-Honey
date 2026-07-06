@@ -26,6 +26,11 @@
 
 * { box-sizing: border-box; }
 
+/* Must always win regardless of a hidden element's other display rules
+   (e.g. .btn sets display:flex, same specificity as [hidden]'s UA style,
+   so without !important source order alone would let .btn show through). */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   padding: 0;
@@ -60,24 +65,67 @@ html, body {
 }
 
 .app-header img.logo {
-  width: 80%;
-  height: auto;
+  height: 34px;
+  width: auto;
   display: block;
 }
 
-.back-btn {
+.header-spacer {
+  flex: 1;
+}
+
+.header-icon-btn {
   border: none;
   background: none;
-  font-size: 16px;
   color: var(--brand-maroon);
-  font-weight: 600;
-  padding: 8px 4px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 4px;
-  text-decoration: none;
-  align-self: flex-start;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex: none;
+  padding: 0;
+}
+
+.header-icon-btn:active {
+  background: var(--brand-rose-light);
+}
+
+.header-icon-btn .icon-svg {
+  width: 21px;
+  height: 21px;
+}
+
+.sync-badge {
+  flex: none;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.sync-badge::before {
+  content: '●';
+  margin-right: 5px;
+  font-size: 9px;
+}
+
+.sync-badge.sync-synced {
+  color: var(--color-green-dark);
+  background: rgba(46, 125, 50, 0.12);
+}
+
+.sync-badge.sync-not-synced {
+  color: var(--color-yellow-dark);
+  background: rgba(217, 148, 0, 0.14);
+}
+
+.sync-badge.sync-offline {
+  color: var(--color-text-muted);
+  background: var(--color-border);
 }
 
 .screen {
@@ -166,7 +214,12 @@ html, body {
   box-sizing: border-box;
 }
 .btn:active { transform: scale(0.98); filter: brightness(0.95); }
-.btn .icon { font-size: 22px; }
+.icon-svg {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: block;
+}
 
 .btn-maroon { background: var(--brand-maroon); }
 .btn-maroon:active { background: var(--brand-maroon-dark); }
@@ -343,8 +396,51 @@ html, body {
 }
 
 .confirm-icon {
-  font-size: 48px;
-  text-align: center;
+  display: flex;
+  justify-content: center;
+  color: var(--color-green);
+}
+.confirm-icon .icon-svg {
+  width: 48px;
+  height: 48px;
+}
+
+.tutorial-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.tutorial-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border);
+}
+
+.tutorial-dot.active {
+  background: var(--brand-maroon);
+}
+
+.reconcile-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(217, 148, 0, 0.14);
+  color: var(--color-yellow-dark);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  margin: 2px 0;
+}
+
+.reconcile-banner .icon-svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
 }
 
 .total-display {

@@ -4,8 +4,10 @@
 
 | Environment | Purpose | Firebase project | Data |
 |---|---|---|---|
-| **Local** | Development on a developer's machine | Firebase Local Emulator Suite (Firestore emulator) | Fake/seeded data, wiped freely |
+| **Local** | Development on a developer's machine | Firebase Local Emulator Suite (Firestore + Auth emulators) | Fake/seeded data, wiped freely |
 | **Production** | The real app staff use in the field | `malaikahoney-78577` | Real farmer & purchase data — treat as sensitive |
+
+Local development runs the Firestore emulator (port `8080`) and the Auth emulator (port `9099`) side by side via `./.tools/run-emulators.sh` — `public/js/lib/firebase.js` detects `localhost` and connects to both automatically. Staff accounts created in the Auth emulator are throwaway/local-only and don't touch the real `malaikahoney-78577` user directory.
 
 There is deliberately no separate "staging" Firebase project yet — the emulator suite covers local testing needs at this scale. Add a staging project (e.g. `malaikahoney-staging`) in [[Backlog]] Milestone 2 if the team grows or before any risky schema migration.
 
@@ -58,6 +60,16 @@ There are currently no server-side secrets (no Cloud Functions, no third-party A
 | feature branches | Local machine only (emulator) | Emulator |
 
 See [[Release-Management]] for the full branching and deployment workflow.
+
+## Staff account provisioning
+
+There is no self-service sign-up and no in-app admin UI yet (that's Milestone 3 territory — see [[Backlog]]). New staff accounts are created manually:
+
+1. Firebase Console → **Authentication** → **Users** → **Add user**.
+2. Email: the staff member's username plus the reserved synthetic domain, e.g. `jokello@staff.malaikahoney.local` (see [[Database-Schema]] "Staff accounts"). Nothing is ever sent to this address — it exists purely so Firebase Auth's email/password provider can be used with a username-only login screen.
+3. Set an initial password and share it with the staff member out-of-band; there's no in-app "forgot password" flow, so a forgotten password also means asking an admin to reset it from this same Console screen.
+
+Locally, create test accounts the same way against the **Auth emulator's** UI (`http://localhost:4000/auth` when `./.tools/run-emulators.sh` is running) instead of the real Console.
 
 ## Who can change what
 

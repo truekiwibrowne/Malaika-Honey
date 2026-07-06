@@ -10,10 +10,10 @@ This backlog is a living document — update it as priorities shift. See [[Chang
 |---|---|---|
 | 1.1 | Project scaffolding, GitHub repo, Firebase project wiring | ✅ |
 | 1.2 | Brand assets (logo, favicon, colours) extracted into app | ✅ |
-| 1.3 | Home screen: Find Farmer / New Farmer / Buy Produce | ✅ |
-| 1.4 | New Farmer registration form + FRN generation | ✅ |
-| 1.5 | Find Farmer (search by name / FRN / phone) + Farmer Profile | ✅ |
-| 1.6 | Buy Produce form with grading, weight, price, payment, receipt no. | ✅ |
+| 1.3 | Home screen: Existing Farmer / New Farmer / Buy Produce | ✅ |
+| 1.4 | New Farmer registration form + FRN generation (works fully offline) | ✅ |
+| 1.5 | Existing Farmer (search by name / FRN / phone) + Farmer Profile | ✅ |
+| 1.6 | Buy Produce form with grading, weight, price, payment, receipt no. — standalone entry point, works fully offline including for FRNs not yet seen on the device | ✅ |
 | 1.7 | Purchase history per farmer | ✅ |
 | 1.8 | Printable farmer ID card (FRN + details) | ✅ |
 | 1.9 | Offline-first behaviour (Firestore persistence) | ✅ |
@@ -24,14 +24,18 @@ This backlog is a living document — update it as priorities shift. See [[Chang
 
 | # | Item | Notes |
 |---|---|---|
-| 2.1 | Staff login (Firebase Auth, phone or PIN-based — no passwords to type on cheap phones) | Needed before multiple staff/centres share one deployment with accountability |
-| 2.2 | Firestore Security Rules locked down to authenticated staff only | Currently open rules for MVP speed — see [[Risk-Register]] |
+| 2.1 | ~~Staff login (username/password per staff member)~~ | ✅ Done — Firebase Auth, individual accounts, synthetic-email-per-username convention so no real email is needed (see [[Database-Schema]] "Staff accounts" and [[Config-Management]] "Staff account provisioning") |
+| 2.2 | ~~Firestore Security Rules locked down to authenticated staff only~~ | ✅ Done — every `farmers`/`purchases`/`devices` rule requires `request.auth != null` (see [[Risk-Register]] R1) |
 | 2.3 | Multi-centre support (`centre` field already reserved in schema) | So HQ can see which buying centre recorded what |
 | 2.4 | ~~Duplicate-farmer detection (same phone/name registered twice)~~ | ✅ Done in 0.2.0 — phone blocks, name warns via confirm dialog (application-level check, not a DB constraint — see [[Database-Schema]] and Risk R13) |
 | 2.5 | Farmer photo capture on registration (device camera → Firebase Storage) | `photoUrl` field already reserved |
 | 2.6 | Edit/void a purchase (with audit trail, not silent overwrite) | Needed for correcting mis-entered weights |
 | 2.7 | App Check to stop unauthorized use of the Firebase project | See [[Risk-Register]] |
 | 2.8 | Installable PWA polish (manifest, offline app shell caching, "Add to Home Screen" prompt) | |
+| 2.9 | ~~Fully offline registration + purchase recording, including for FRNs not yet cached on the device~~ | ✅ Done — device-coded FRN minting removes the server-side counter/transaction dependency; unmatched purchases save with `frnUnverified` and are fixed via the `/reconcile` screen (see [[System-Architecture]] and [[Database-Schema]]) |
+| 2.10 | ~~Visible sync status indicator~~ | ✅ Done — header badge shows Synced / Not Synced / Offline on every authenticated screen (`public/js/lib/sync.js`, `header.js`) |
+| 2.11 | ~~First-run in-app tutorial~~ | ✅ Done — shown once per staff account after first sign-in (`public/js/screens/tutorial.js`), skippable |
+| 2.12 | Role distinction between field staff and admin (all signed-in accounts currently have identical Firestore access) | Needed before the admin app (Milestone 3) shares the same accounts, and before any account should be restricted from e.g. deleting data |
 
 ## Milestone 3 — Admin / Management App
 

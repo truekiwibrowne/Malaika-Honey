@@ -3,10 +3,7 @@ import { searchFarmers } from '../lib/db.js';
 
 let debounceTimer = null;
 
-export function renderFindFarmer(root, query) {
-  const intent = query ? query.get('intent') : null;
-  const destPrefix = intent === 'buy' ? '#/buy/' : '#/farmer/';
-
+export function renderFindFarmer(root) {
   const resultsBox = el('div', { class: 'field', style: 'gap:10px' });
 
   const searchInput = el('input', {
@@ -36,7 +33,7 @@ export function renderFindFarmer(root, query) {
         ...farmers.map((f) =>
           el(
             'a',
-            { href: destPrefix + f.frn, class: 'result-item' },
+            { href: '#/farmer/' + f.frn, class: 'result-item' },
             [
               el('span', { class: 'name' }, f.fullName),
               el('span', { class: 'sub' }, f.village + ' · ' + f.frn),
@@ -54,9 +51,8 @@ export function renderFindFarmer(root, query) {
 
   mount(
     root,
-    el('a', { href: '#/home', class: 'back-btn' }, '← Back'),
-    el('h1', {}, 'Find Farmer'),
-    el('p', { class: 'welcome' }, intent === 'buy' ? 'Find the farmer to record a purchase for.' : 'Find a farmer profile.'),
+    el('h1', {}, 'Existing Farmer'),
+    el('p', { class: 'welcome' }, 'Find a farmer profile.'),
     el('div', { class: 'field' }, [searchInput]),
     resultsBox
   );

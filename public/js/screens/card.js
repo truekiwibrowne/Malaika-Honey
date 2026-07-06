@@ -1,5 +1,10 @@
 import { el, mount, toast } from '../lib/ui.js';
-import { getFarmerByFrn } from '../lib/db.js';
+import { getFarmerByFrnFromCache } from '../lib/db.js';
+import { iconEl } from '../lib/icons.js';
+
+function resetDownloadBtnLabel(btn) {
+  btn.replaceChildren(iconEl('download'), document.createTextNode(' Download PDF'));
+}
 
 const BRAND_MAROON = [124, 35, 40];
 
@@ -66,40 +71,32 @@ async function downloadFarmerCardPdf(farmer) {
 export async function renderCard(root, { frn }) {
   mount(root, el('p', { class: 'hint' }, 'Loading card…'));
 
-  const farmer = await getFarmerByFrn(frn);
+  const farmer = await getFarmerByFrnFromCache(frn);
   if (!farmer) {
-    mount(
-      root,
-      el('a', { href: '#/farmer/' + frn, class: 'back-btn' }, '← Back'),
-      el('div', { class: 'empty-state' }, 'Farmer ' + frn + ' was not found on this device.')
-    );
+    mount(root, el('div', { class: 'empty-state' }, 'Farmer ' + frn + ' was not found on this device.'));
     return;
   }
 
-  const downloadBtn = el(
-    'button',
-    {
-      class: 'btn btn-maroon',
-      onClick: async () => {
-        downloadBtn.disabled = true;
-        downloadBtn.textContent = 'Preparing PDF…';
-        try {
-          await downloadFarmerCardPdf(farmer);
-        } catch (err) {
-          console.error(err);
-          toast('Could not generate the PDF. Check your connection and try again.');
-        } finally {
-          downloadBtn.disabled = false;
-          downloadBtn.textContent = '⬇ Download PDF';
-        }
-      },
+  const downloadBtn = el('button', {
+    class: 'btn btn-maroon',
+    onClick: async () => {
+      downloadBtn.disabled = true;
+      downloadBtn.textContent = 'Preparing PDF…';
+      try {
+        await downloadFarmerCardPdf(farmer);
+      } catch (err) {
+        console.error(err);
+        toast('Could not generate the PDF. Check your connection and try again.');
+      } finally {
+        downloadBtn.disabled = false;
+        resetDownloadBtnLabel(downloadBtn);
+      }
     },
-    '⬇ Download PDF'
-  );
+  });
+  resetDownloadBtnLabel(downloadBtn);
 
   mount(
     root,
-    el('a', { href: '#/farmer/' + frn, class: 'back-btn' }, '← Back'),
     el('h1', {}, 'Farmer Card'),
     el('p', { class: 'welcome' }, 'Printable ID card for ' + farmer.fullName + '.'),
     el('div', { class: 'id-card' }, [

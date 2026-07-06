@@ -21,7 +21,6 @@ export async function renderHistory(root, { frn }) {
 
   mount(
     root,
-    el('a', { href: '#/farmer/' + frn, class: 'back-btn' }, '← Back'),
     el('h1', {}, 'History'),
     el('p', { class: 'welcome' }, (farmer ? farmer.fullName : frn) + ' · ' + frn),
     el('hr', { class: 'hr' }),

@@ -2,6 +2,11 @@ import { el, mount } from '../lib/ui.js';
 import { navigate } from '../router.js';
 import { createFarmer, findFarmerByPhone, findFarmerByName } from '../lib/db.js';
 import { DISTRICTS, FARM_SIZES, GENDERS } from '../lib/constants.js';
+import { iconEl } from '../lib/icons.js';
+
+function resetSaveBtnLabel(btn) {
+  btn.replaceChildren(iconEl('check'), document.createTextNode(' Save Farmer'));
+}
 
 function choiceGroup(name, options, selectedValue, onSelect) {
   const group = el('div', { class: 'choice-group', 'data-group': name });
@@ -81,14 +86,8 @@ export function renderNewFarmer(root) {
     (v) => (state.wantsTraining = v === 'yes')
   );
 
-  const saveBtn = el(
-    'button',
-    {
-      type: 'submit',
-      class: 'btn btn-green',
-    },
-    ['✔ Save Farmer']
-  );
+  const saveBtn = el('button', { type: 'submit', class: 'btn btn-green' });
+  resetSaveBtnLabel(saveBtn);
 
   const form = el(
     'form',
@@ -119,7 +118,7 @@ export function renderNewFarmer(root) {
             errorBox.hidden = false;
             errorBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
             saveBtn.disabled = false;
-            saveBtn.textContent = '✔ Save Farmer';
+            resetSaveBtnLabel(saveBtn);
             return;
           }
 
@@ -131,7 +130,7 @@ export function renderNewFarmer(root) {
             );
             if (!proceed) {
               saveBtn.disabled = false;
-              saveBtn.textContent = '✔ Save Farmer';
+              resetSaveBtnLabel(saveBtn);
               return;
             }
           }
@@ -160,7 +159,7 @@ export function renderNewFarmer(root) {
           errorBox.textContent = 'Could not save this farmer. ' + (err.message || 'Please try again.');
           errorBox.hidden = false;
           saveBtn.disabled = false;
-          saveBtn.textContent = '✔ Save Farmer';
+          resetSaveBtnLabel(saveBtn);
         }
       },
     },
@@ -198,7 +197,6 @@ export function renderNewFarmer(root) {
 
   mount(
     root,
-    el('a', { href: '#/home', class: 'back-btn' }, '← Back'),
     el('h1', {}, 'New Farmer'),
     el('p', { class: 'welcome' }, 'Register a new farmer.'),
     form
@@ -208,13 +206,13 @@ export function renderNewFarmer(root) {
 export function renderNewFarmerSuccess(root, { frn }) {
   mount(
     root,
-    el('div', { class: 'confirm-icon' }, '✔'),
+    el('div', { class: 'confirm-icon' }, [iconEl('check')]),
     el('h1', { style: 'text-align:center' }, 'Farmer Created'),
     el('p', { class: 'welcome', style: 'text-align:center' }, 'Registration complete.'),
     el('div', { class: 'frn-badge', style: 'align-self:center' }, 'FRN ' + frn),
     el('hr', { class: 'hr' }),
-    el('a', { href: '#/buy/' + frn, class: 'btn btn-yellow' }, [el('span', { class: 'icon' }, '🍯'), 'Buy Produce']),
-    el('a', { href: '#/card/' + frn, class: 'btn btn-outline' }, [el('span', { class: 'icon' }, '🪪'), 'Farmer Card']),
+    el('a', { href: '#/buy/' + frn, class: 'btn btn-yellow' }, [iconEl('honeyJar'), 'Buy Produce']),
+    el('a', { href: '#/card/' + frn, class: 'btn btn-outline' }, [iconEl('idCard'), 'Farmer Card']),
     el('a', { href: '#/home', class: 'btn btn-secondary' }, 'Done')
   );
 }

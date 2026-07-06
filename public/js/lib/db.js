@@ -1,82 +1,94 @@
 import {
   doc,
   getDoc,
+  getDocFromCache,
   setDoc,
-  addDoc,
+  updateDoc,
+  increment,
   collection,
   query,
   where,
   orderBy,
   limit,
   getDocs,
-  runTransaction,
   serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { db } from './firebase.js';
 import { todayIso } from './constants.js';
+import { currentDisplayName } from './auth.js';
+import { getDeviceCode, nextLocalSequence } from './device.js';
+import { trackWrite } from './sync.js';
 
 const FRN_PREFIX = 'MH';
-const FRN_DIGITS = 6;
 
-function formatFrn(sequence) {
-  return FRN_PREFIX + String(sequence).padStart(FRN_DIGITS, '0');
+function formatFrn() {
+  const seq = nextLocalSequence();
+  return FRN_PREFIX + getDeviceCode() + String(seq).padStart(6, '0');
 }
 
+// Matches both the old shared-counter format (MH000001) and the current
+// device-coded format (MHA7K000001) - both are permanent, opaque unique
+// strings and neither is ever migrated to the other (see
+// docs/Database-Schema.md "devices/{deviceCode}").
 function looksLikeFrn(value) {
-  return /^mh\d+$/i.test(value.trim());
+  return /^mh[a-z0-9]+$/i.test(value.trim());
 }
+
+// IMPORTANT: setDoc/updateDoc promises only resolve once the write is
+// ACKNOWLEDGED BY THE SERVER - while offline that never happens until a
+// connection returns, so awaiting them directly would hang the UI
+// indefinitely. The local cache (and therefore every read in this file)
+// updates synchronously regardless of connectivity, which is what makes
+// offline use possible at all - callers must not await the write itself,
+// only fire it and let it resolve/reject in the background (see
+// trackWrite in sync.js, which also drives the header's sync badge).
 
 /**
- * Creates a new farmer document and mints its FRN in a single transaction,
- * so two staff registering at the same moment can never collide
- * (see docs/Database-Schema.md "counters/frnCounter").
+ * Creates a new farmer document. The FRN is minted entirely client-side
+ * (device code + a locally-incremented sequence, see device.js) so this
+ * never needs a server round-trip - unlike a transaction (which fails
+ * outright when offline instead of queuing), this plain setDoc queues
+ * correctly and syncs automatically once a connection is available. The
+ * write is intentionally not awaited (see trackWrite above) so this
+ * resolves instantly, online or off.
  */
 export async function createFarmer(farmerInput) {
-  const counterRef = doc(db, 'counters', 'frnCounter');
+  const frn = formatFrn();
+  const farmerRef = doc(db, 'farmers', frn);
 
-  const frn = await runTransaction(db, async (tx) => {
-    const counterSnap = await tx.get(counterRef);
-    const nextValue = (counterSnap.exists() ? counterSnap.data().lastValue : 0) + 1;
-    const newFrn = formatFrn(nextValue);
-    const farmerRef = doc(db, 'farmers', newFrn);
-
-    tx.set(counterRef, { lastValue: nextValue });
-    tx.set(farmerRef, {
-      schemaVersion: 1,
-      frn: newFrn,
-      fullName: farmerInput.fullName,
-      fullNameLower: farmerInput.fullName.trim().toLowerCase(),
-      dateOfBirth: farmerInput.dateOfBirth || null,
-      gender: farmerInput.gender || null,
-      phone: farmerInput.phone,
-      email: farmerInput.email || null,
-      village: farmerInput.village,
-      district: farmerInput.district,
-      farmSize: farmerInput.farmSize || null,
-      hives: {
-        traditional: Number(farmerInput.hivesTraditional) || 0,
-        ktb: Number(farmerInput.hivesKtb) || 0,
-        modern: Number(farmerInput.hivesModern) || 0,
-      },
-      otherCropsOrLivestock: farmerInput.otherCropsOrLivestock || '',
-      avgHarvestKgPerYear: Number(farmerInput.avgHarvestKgPerYear) || 0,
-      usesChemicals: !!farmerInput.usesChemicals,
-      wantsTraining: !!farmerInput.wantsTraining,
-      signatureDate: farmerInput.signatureDate || todayIso(),
-      photoUrl: null,
-      status: 'active',
-      registeredBy: farmerInput.registeredBy || 'Field App',
-      registeredAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      lifetimeStats: {
-        totalKg: 0,
-        totalPaidUgx: 0,
-        lastPurchaseAt: null,
-      },
-    });
-
-    return newFrn;
-  });
+  trackWrite(setDoc(farmerRef, {
+    schemaVersion: 1,
+    frn,
+    fullName: farmerInput.fullName,
+    fullNameLower: farmerInput.fullName.trim().toLowerCase(),
+    dateOfBirth: farmerInput.dateOfBirth || null,
+    gender: farmerInput.gender || null,
+    phone: farmerInput.phone,
+    email: farmerInput.email || null,
+    village: farmerInput.village,
+    district: farmerInput.district,
+    farmSize: farmerInput.farmSize || null,
+    hives: {
+      traditional: Number(farmerInput.hivesTraditional) || 0,
+      ktb: Number(farmerInput.hivesKtb) || 0,
+      modern: Number(farmerInput.hivesModern) || 0,
+    },
+    otherCropsOrLivestock: farmerInput.otherCropsOrLivestock || '',
+    avgHarvestKgPerYear: Number(farmerInput.avgHarvestKgPerYear) || 0,
+    usesChemicals: !!farmerInput.usesChemicals,
+    wantsTraining: !!farmerInput.wantsTraining,
+    signatureDate: farmerInput.signatureDate || todayIso(),
+    photoUrl: null,
+    status: 'active',
+    registeredBy: farmerInput.registeredBy || currentDisplayName(),
+    registeredAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    lifetimeStats: {
+      totalKg: 0,
+      totalPaidUgx: 0,
+      lastPurchaseAt: null,
+    },
+  }), 'farmer ' + frn);
 
   return frn;
 }
@@ -85,6 +97,33 @@ export async function getFarmerByFrn(frn) {
   const ref = doc(db, 'farmers', frn.trim().toUpperCase());
   const snap = await getDoc(ref);
   return snap.exists() ? snap.data() : null;
+}
+
+/**
+ * Cache-only farmer lookup - never attempts a server round-trip, so it
+ * resolves quickly regardless of connectivity instead of hanging (unlike
+ * getDoc, which can wait indefinitely for a document that isn't cached
+ * while offline - see docs/System-Architecture.md). Used anywhere that
+ * must not block on a network round-trip, e.g. Buy Produce.
+ */
+export async function getFarmerByFrnFromCache(frn) {
+  return getFarmerFromCache(frn);
+}
+
+/**
+ * Cache-only farmer lookup - never attempts a server round-trip, so it
+ * resolves instantly offline instead of hanging/failing. Returns null if
+ * the farmer isn't known on this device (never registered here, and never
+ * looked up here while online before).
+ */
+async function getFarmerFromCache(frn) {
+  const ref = doc(db, 'farmers', frn.trim().toUpperCase());
+  try {
+    const snap = await getDocFromCache(ref);
+    return snap.exists() ? snap.data() : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -120,7 +159,11 @@ export async function searchFarmers(rawQuery) {
   if (!q) return [];
 
   if (looksLikeFrn(q)) {
-    const farmer = await getFarmerByFrn(q);
+    // Cache-only: search must never hang waiting for a network round-trip
+    // (see getFarmerByFrnFromCache) - if a farmer genuinely isn't cached
+    // on this device yet, that's the same "not found here" outcome a
+    // staff member would get from any other offline search.
+    const farmer = await getFarmerFromCache(q);
     return farmer ? [farmer] : [];
   }
 
@@ -131,11 +174,14 @@ export async function searchFarmers(rawQuery) {
   phoneSnap.forEach((d) => results.set(d.id, d.data()));
 
   const lower = q.toLowerCase();
+  // '' is a very high Unicode code point (Private Use Area), higher
+  // than any normal character - appending it to the upper bound is the
+  // standard Firestore trick for a "starts with" prefix range query.
   const nameQuery = query(
     collection(db, 'farmers'),
     orderBy('fullNameLower'),
     where('fullNameLower', '>=', lower),
-    where('fullNameLower', '<=', lower + ''),
+    where('fullNameLower', '<=', lower + String.fromCharCode(0xf8ff)),
     limit(15)
   );
   const nameSnap = await getDocs(nameQuery);
@@ -145,25 +191,26 @@ export async function searchFarmers(rawQuery) {
 }
 
 /**
- * Records a purchase and updates the farmer's denormalized lifetime stats
- * in one transaction (see docs/Database-Schema.md "Why denormalize").
+ * Records a purchase. Always saves, online or offline: the purchase doc
+ * itself is written unconditionally via setDoc (queues fine offline). The
+ * farmer's denormalized lifetimeStats are updated via increment() - safe
+ * to apply without reading the current value first, so (unlike the old
+ * transactional read-modify-write) it also queues and applies correctly
+ * offline. If the farmer isn't known on this device at all, the purchase
+ * is still saved, flagged frnUnverified, with the stats update deferred
+ * until reconciliation (see resolveUnverifiedPurchase) confirms the FRN.
  */
 export async function savePurchase(purchaseInput) {
-  const farmerRef = doc(db, 'farmers', purchaseInput.frn);
+  const frn = purchaseInput.frn.trim().toUpperCase();
+  const farmerRef = doc(db, 'farmers', frn);
   const purchaseRef = doc(collection(db, 'purchases'));
+  const farmer = await getFarmerFromCache(frn);
 
-  await runTransaction(db, async (tx) => {
-    const farmerSnap = await tx.get(farmerRef);
-    if (!farmerSnap.exists()) {
-      throw new Error('Farmer not found for FRN ' + purchaseInput.frn);
-    }
-    const farmer = farmerSnap.data();
-    const stats = farmer.lifetimeStats || { totalKg: 0, totalPaidUgx: 0, lastPurchaseAt: null };
-
-    tx.set(purchaseRef, {
+  trackWrite(
+    setDoc(purchaseRef, {
       schemaVersion: 1,
-      frn: purchaseInput.frn,
-      farmerNameSnapshot: farmer.fullName,
+      frn,
+      farmerNameSnapshot: farmer ? farmer.fullName : null,
       product: purchaseInput.product,
       weightKg: Number(purchaseInput.weightKg),
       grade: purchaseInput.grade,
@@ -173,22 +220,76 @@ export async function savePurchase(purchaseInput) {
       receiptNo: purchaseInput.receiptNo || '',
       purchaseDate: purchaseInput.purchaseDate || todayIso(),
       centre: null,
-      recordedBy: purchaseInput.recordedBy || 'Field App',
+      recordedBy: purchaseInput.recordedBy || currentDisplayName(),
       createdAt: serverTimestamp(),
       syncedFromOffline: !navigator.onLine,
-    });
+      frnUnverified: !farmer,
+      originalTypedFrn: farmer ? null : frn,
+    }),
+    'purchase ' + purchaseRef.id
+  );
 
-    tx.update(farmerRef, {
-      lifetimeStats: {
-        totalKg: (stats.totalKg || 0) + Number(purchaseInput.weightKg),
-        totalPaidUgx: (stats.totalPaidUgx || 0) + Number(purchaseInput.totalUgx),
-        lastPurchaseAt: purchaseInput.purchaseDate || todayIso(),
-      },
-      updatedAt: serverTimestamp(),
-    });
+  if (farmer) {
+    trackWrite(
+      updateDoc(farmerRef, {
+        'lifetimeStats.totalKg': increment(Number(purchaseInput.weightKg)),
+        'lifetimeStats.totalPaidUgx': increment(Number(purchaseInput.totalUgx)),
+        'lifetimeStats.lastPurchaseAt': purchaseInput.purchaseDate || todayIso(),
+        updatedAt: serverTimestamp(),
+      }),
+      'lifetimeStats for ' + frn
+    );
+  }
+
+  return { purchaseId: purchaseRef.id, verified: !!farmer };
+}
+
+/**
+ * Confirms the correct farmer for a purchase that was saved with
+ * frnUnverified (see savePurchase), then applies the stats update that
+ * was deferred at save time. Used by the reconciliation screen.
+ */
+export async function resolveUnverifiedPurchase(purchaseId, confirmedFrn) {
+  const frn = confirmedFrn.trim().toUpperCase();
+  const farmer = await getFarmerByFrn(frn);
+  if (!farmer) {
+    throw new Error('Farmer ' + frn + ' not found.');
+  }
+
+  const purchaseRef = doc(db, 'purchases', purchaseId);
+  const purchaseSnap = await getDoc(purchaseRef);
+  if (!purchaseSnap.exists()) {
+    throw new Error('Purchase record not found.');
+  }
+  const purchase = purchaseSnap.data();
+
+  await updateDoc(purchaseRef, {
+    frn,
+    farmerNameSnapshot: farmer.fullName,
+    frnUnverified: false,
   });
 
-  return purchaseRef.id;
+  await updateDoc(doc(db, 'farmers', frn), {
+    'lifetimeStats.totalKg': increment(purchase.weightKg),
+    'lifetimeStats.totalPaidUgx': increment(purchase.totalUgx),
+    'lifetimeStats.lastPurchaseAt': purchase.purchaseDate,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Purchases still awaiting reconciliation (see resolveUnverifiedPurchase),
+ * for the /reconcile screen.
+ */
+export async function getUnverifiedPurchases() {
+  const q = query(
+    collection(db, 'purchases'),
+    where('frnUnverified', '==', true),
+    orderBy('createdAt', 'desc'),
+    limit(50)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
 export async function getPurchaseHistory(frn) {

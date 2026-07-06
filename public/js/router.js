@@ -1,6 +1,7 @@
 const routes = [];
+let hooks = {};
 
-export function addRoute(pattern, handler) {
+export function addRoute(pattern, handler, options = {}) {
   const paramNames = [];
   const regex = new RegExp(
     '^' +
@@ -16,7 +17,7 @@ export function addRoute(pattern, handler) {
         .join('/') +
       '$'
   );
-  routes.push({ regex, paramNames, handler });
+  routes.push({ regex, paramNames, handler, options });
 }
 
 export function navigate(hash) {
@@ -38,6 +39,20 @@ function handleRoute() {
       route.paramNames.forEach((name, i) => {
         params[name] = decodeURIComponent(match[i + 1]);
       });
+
+      if (hooks.isAuthenticated) {
+        const authed = hooks.isAuthenticated();
+        if (!route.options.public && !authed) {
+          navigate('#/login');
+          return;
+        }
+        if (route.options.public && authed) {
+          navigate('#/home');
+          return;
+        }
+      }
+
+      if (hooks.onRouteMatched) hooks.onRouteMatched(route.options, params, query);
       route.handler(params, query);
       return;
     }
@@ -45,7 +60,8 @@ function handleRoute() {
   navigate('#/home');
 }
 
-export function startRouter() {
+export function startRouter(routerHooks = {}) {
+  hooks = routerHooks;
   window.addEventListener('hashchange', handleRoute);
   handleRoute();
 }

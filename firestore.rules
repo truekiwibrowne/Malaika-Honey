@@ -1,29 +1,47 @@
 rules_version = '2';
 
-// MVP rules: no staff login yet (see docs/Backlog.md Milestone 2 and
-// docs/Risk-Register.md R1). Access is restricted to the known
-// collections/shapes this app uses, rather than left fully open, as a
-// minimum safety net until Firebase Auth is added.
+// Staff must be signed in (Firebase Auth) for every operation below.
+// Every signed-in staff account currently has identical access - there is
+// no admin/field-staff role distinction yet (see docs/Backlog.md).
 service cloud.firestore {
   match /databases/{database}/documents {
 
     match /farmers/{frn} {
-      allow read: if true;
-      allow create: if request.resource.data.keys().hasAll(['frn', 'fullName', 'phone']);
-      allow update: if true;
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasAll(['frn', 'fullName', 'phone']);
+      allow update: if request.auth != null;
       allow delete: if false;
     }
 
     match /purchases/{purchaseId} {
-      allow read: if true;
-      allow create: if request.resource.data.keys().hasAll(['frn', 'product', 'weightKg', 'totalUgx']);
-      allow update: if false;
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasAll(['frn', 'product', 'weightKg', 'totalUgx']);
+      // Update is needed for the reconciliation flow (resolving a
+      // frnUnverified purchase once the correct farmer is confirmed).
+      allow update: if request.auth != null;
       allow delete: if false;
     }
 
+    // Retired: FRN minting no longer uses a shared server-side counter
+    // (see docs/Database-Schema.md "devices/{deviceCode}"). Left in place,
+    // unused, rather than deleted, in case any historical doc needs reading.
     match /counters/{counterId} {
-      allow read: if true;
-      allow write: if true;
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // Each device claims its own randomly-generated short code once, the
+    // first time it has a connection (see device.js). create-only (not
+    // update) so a device can never overwrite another device's
+    // registration - if two devices happen to roll the same code, the
+    // second device's claim is silently rejected (accepted low-probability
+    // risk, not auto-recovered - see Risk-Register).
+    match /devices/{deviceCode} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if false;
     }
 
     match /{document=**} {

@@ -6,6 +6,25 @@ All notable changes to this project are documented here. Format loosely follows 
 
 Nothing yet.
 
+## [0.2.1] - 2026-07-06
+
+Staff login, fully-offline registration/purchases, sync status indicator, header restructure, and a first-run tutorial.
+
+### Added
+- **Staff login** (Firebase Auth): each staff member signs in with their own username/password (mapped to a synthetic `@staff.malaikahoney.local` email so no real email is needed). Sessions persist locally, so signing in once while online is enough to keep working fully offline afterward.
+- **First-run tutorial**: a short, skippable 4-slide walkthrough shown once per staff account right after their first sign-in.
+- **Fully offline registration and purchase recording**: FRN minting no longer depends on a server-side counter/transaction (which failed outright offline) — FRNs are now minted client-side from a per-device code + local sequence (e.g. `MHA1000042`), guaranteeing uniqueness without any server round-trip. Existing `MH000001`-style FRNs are untouched and keep working.
+- **Buy Produce as a standalone, offline-capable entry point**: reachable directly from Home, not just from a confirmed Farmer Profile. Staff can type an FRN and record a purchase even if that farmer isn't recognized on the device yet (offline, first time seen) — the purchase still saves, flagged for reconciliation.
+- **Reconciliation screen** (`/reconcile`): lists purchases saved against an unrecognized FRN, lets staff search and link each to the correct farmer, applying the deferred lifetime-stats update. A banner on Home surfaces the count whenever any are unresolved.
+- **Sync status badge**: every authenticated screen shows Synced / Not Synced / Offline in the header, backed by `public/js/lib/sync.js`.
+- **Header restructure**: Home keeps the full logo + sync badge; every other screen shows back/home/sign-out icon buttons + the sync badge instead of the logo, driven centrally by the router rather than per-screen back links.
+- **Custom line-icon set** (`public/js/lib/icons.js`) replacing every emoji icon app-wide, in a consistent style.
+- Firestore Security Rules now require `request.auth != null` on every `farmers`/`purchases`/`devices` operation; new `devices/{deviceCode}` collection with create-only rules.
+
+### Changed
+- Home's "Find Farmer" renamed to **Existing Farmer** (same behavior).
+- `registeredBy` / `recordedBy` now come from the signed-in staff account instead of free text.
+
 ## [0.2.0] - 2026-07-04
 
 Deployment fixes, duplicate-registration checks, and a UI/layout overhaul based on real-device testing.

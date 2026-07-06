@@ -5,8 +5,26 @@ This guide is for buying-centre staff using the Malaika Honey app on a phone. It
 ## Getting started
 
 1. Open the app link in your phone's browser (Chrome recommended).
-2. On the Home screen you'll see three big buttons: **Find Farmer**, **New Farmer**, **Buy Produce**.
-3. The app works even with a weak or no signal. If you have no signal, keep using the app normally — it will send your work to the office database automatically once your phone reconnects to the internet. Try to reconnect to the internet (Wi-Fi or data) at least once before the end of your day so your work reaches the office.
+2. **Sign in** with the username and password your admin gave you (see "Logging in" below). The first time you sign in, you'll see a short tutorial — you can skip it any time.
+3. On the Home screen you'll see three big buttons: **Existing Farmer**, **New Farmer**, **Buy Produce**.
+4. The app works even with a weak or no signal. If you have no signal, keep using the app normally — it will send your work to the office database automatically once your phone reconnects to the internet. Try to reconnect to the internet (Wi-Fi or data) at least once before the end of your day so your work reaches the office. Watch the badge at the top of the screen (see "What the sync badge means" below) to know whether your work has actually reached the office yet.
+
+## Logging in
+
+The app now requires you to sign in with your own username and password before you can use it — this replaces the old no-login version, so the office can tell who registered which farmer or recorded which purchase.
+
+1. Enter your **username** (no email address needed) and **password**, then tap **Sign In**.
+2. **You must sign in at least once while you have internet.** After that first sign-in, you can keep using the app fully offline — you won't be asked to sign in again on that phone unless you deliberately sign out.
+3. If you've forgotten your password, there's no in-app reset — ask your admin to reset it for you.
+4. To sign out, tap the sign-out icon in the top-right corner of any screen (not shown on Home). If you have unsynced work, the app will warn you before signing out, since a queued purchase or registration may not reach the office if you sign out before it finishes syncing — wait for the badge to show **Synced** first if you can.
+
+## What the sync badge means
+
+Every screen except the login screen shows a small badge in the top-right corner:
+
+- **● Synced** (green) — everything you've entered has reached the office database. Safe to sign out or move on.
+- **● Not Synced** (yellow) — you're online, but something you just entered is still uploading. Give it a moment.
+- **● Offline** (grey) — your phone has no internet connection right now. Keep working normally; everything you enter is saved on your phone and will upload automatically the moment you reconnect.
 
 ## Registering a new farmer
 
@@ -19,21 +37,23 @@ Use this the first time a farmer brings honey or wants to join Malaika Honey.
    - Farm size, number of hives (Traditional / KTB / Modern)
    - Average honey harvest per year, whether they use chemicals, whether they want training
 3. Tap **Save Farmer**.
-   - If the phone number is already registered to someone else, the app will **refuse to save** and show you who it belongs to (name and FRN) — each phone number can only be registered once. Use **Find Farmer** instead if this is the same person.
+   - If the phone number is already registered to someone else, the app will **refuse to save** and show you who it belongs to (name and FRN) — each phone number can only be registered once. Use **Existing Farmer** instead if this is the same person.
    - If the name is already registered (but the phone number is new), the app will ask you to confirm before continuing — this is expected when two different farmers share a name, so you can choose to proceed or go back and double-check.
-4. The app will show a new **FRN (Farmer Reference Number)** — something like `MH004826`. This number belongs to this farmer forever. Write it on their paper file if you keep one, and let them know their number.
+4. The app will show a new **FRN (Farmer Reference Number)** — something like `MH004826` or `MHA1000042` (newer registrations use a slightly longer code; both kinds work exactly the same). This number belongs to this farmer forever. Write it on their paper file if you keep one, and let them know their number.
 5. From this confirmation screen you can immediately:
    - Tap **Buy Produce** if they've brought honey today, or
    - Tap **Done** to return home.
 6. Download or write the FRN on a card for the farmer to bring next time — see "Farmer ID cards" below.
 
-**Tip:** if a farmer already has an FRN from a previous visit, don't register them again — use **Find Farmer** instead. The app blocks re-registering the same phone number for exactly this reason.
+**This works fully offline too** — with no signal at all, you can still register a new farmer. It saves on your phone immediately and uploads automatically once you're back online.
 
-## Finding a farmer
+**Tip:** if a farmer already has an FRN from a previous visit, don't register them again — use **Existing Farmer** instead. The app blocks re-registering the same phone number for exactly this reason.
+
+## Existing Farmer
 
 Use this every time a returning farmer arrives, before recording a purchase.
 
-1. From Home, tap **Find Farmer**.
+1. From Home, tap **Existing Farmer**.
 2. Type part of their name, their FRN, or their phone number.
 3. Tap their name in the results list.
 4. Their profile opens, showing their village, phone, lifetime honey delivered, date of their last delivery, and total paid to date.
@@ -41,7 +61,13 @@ Use this every time a returning farmer arrives, before recording a purchase.
 
 **If a farmer presents their card:** check the name and details on it match what comes up when you search their FRN, before processing their purchase.
 
+**This needs internet.** Searching for a farmer only works while online — it looks up records that may not be saved on your phone yet. If you're offline and need to record a purchase for a farmer who isn't already on your phone from a previous visit, use **Buy Produce** directly from Home instead (see below).
+
 ## Recording a purchase (Buy Produce)
+
+**Buy Produce** works two ways: from a farmer's profile (once you've confirmed who they are via Existing Farmer), or directly from the Home screen — which is the one that works without internet.
+
+### From a farmer's profile
 
 This should take no more than a few taps once you've found the farmer.
 
@@ -61,6 +87,25 @@ This should take no more than a few taps once you've found the farmer.
 
 This flow is designed so you never have to go back to the Home screen between farmers during a busy day.
 
+### Directly from Home (works offline)
+
+Tap **Buy Produce** on the Home screen when you don't need — or can't get — a confirmed farmer profile first:
+
+1. Type the farmer's FRN, name, or phone. **While online**, this searches and shows a picker just like Existing Farmer.
+2. **While offline**, no search results will appear (there's no signal to search with) — just type the FRN exactly and tap **Continue with this FRN**. If you got the FRN wrong or the farmer genuinely isn't recognized on your phone yet, don't worry: the app still lets you record the purchase, with a clear note that it "wasn't found on this device — will be checked once online." It saves normally and is fixed up automatically once the office reviews it (see "Fixing an unrecognized purchase" below) — you don't need to do anything extra at the time.
+3. Fill in the purchase details and **Save** exactly as above.
+
+## Fixing an unrecognized purchase
+
+If you (or a colleague) recorded a purchase against an FRN the phone didn't recognize at the time — usually because it was typed while offline for a farmer never seen on that phone before — it doesn't get lost or blocked. Once the phone is back online:
+
+1. A banner appears on the Home screen: **"N purchases need a farmer match — tap to fix."**
+2. Tap it to open the fix-up screen. Each unmatched purchase shows what was typed and the purchase details (product, weight, total, date).
+3. Search for the correct farmer by name or FRN and tap them in the results — this links the purchase to that farmer and updates their lifetime totals.
+4. If no match comes up, the farmer probably isn't registered yet — register them first (**New Farmer**), then come back to this screen and search again.
+
+This screen only ever shows purchases that still need attention — once every purchase is matched, it says there's nothing to fix.
+
 ## Farmer ID cards
 
 From a farmer's profile, open **Farmer Card**. It shows their FRN, name, village/district, and phone. Tap **Download PDF** to save a small card-sized PDF — print it at the centre (or write the details by hand if no printer is available) and give it to the farmer to bring on future visits. It speeds up finding them next time.
@@ -74,7 +119,7 @@ There is currently no in-app edit for a saved purchase. Note the correction on y
 Each farmer only needs one FRN. If you suspect a duplicate, flag it to the office rather than registering again.
 
 **Do I need to log in?**
-Not yet. The app currently has no login — anyone with the app link can use it at your centre. A login is planned for a future version (see [[Backlog]]).
+Yes — every staff member signs in with their own username and password (see "Logging in" above). You only need internet the first time; after that, you can keep working offline on that phone.
 
 **What happens to the data I enter?**
 It's saved to Malaika Honey's central database (Firebase) and is used to pay farmers correctly, track supply, and — over time — to report on farmer income and honey quality improvements to Malaika's partners.
