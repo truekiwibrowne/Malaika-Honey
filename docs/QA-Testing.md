@@ -9,15 +9,18 @@ There is no automated test suite for v1 (a deliberate scope decision — see [[B
 # in a second terminal, serve the app (or use the Firebase Hosting emulator's own port)
 npx serve public -l 5000
 ```
-Open `http://localhost:5000`. The app auto-detects `localhost` and connects to the Firestore **and Auth** emulators instead of production (see `public/js/lib/firebase.js` and [[Config-Management]]) — so testing never touches real farmer data or real staff accounts. Create a throwaway test account first via the Auth emulator UI (`http://localhost:4000/auth`) or `accounts:signUp` — see [[Config-Management]] "Staff account provisioning."
+Open `http://localhost:5000`. The app auto-detects `localhost` and connects to the Firestore **and Auth** emulators instead of production (see `public/js/lib/firebase.js` and [[Config-Management]]) — so testing never touches real farmer data or real staff accounts. Tapping **Sign in with Google** against the Auth emulator shows a fake account-picker form (no real Google account needed) — after signing in, add that email to the Firestore emulator's `allowedStaff` collection to grant test access (Emulator UI's Firestore tab, or the Admin SDK) — see [[Config-Management]] "Staff account provisioning."
 
 ## Golden-path checklist (run before every release)
 
-### 0. Login and first-run tutorial
-- [ ] Sign in with a valid test username/password and confirm it lands on Home.
-- [ ] Sign in with a wrong password and confirm a clear "Incorrect username or password" message (not a raw error).
+### 0. Login, authorization, and first-run tutorial
+- [ ] Sign in with a Google account **not** on the `allowedStaff` allowlist and confirm it lands on "Approval Needed" (showing that account's email), not Home or any farmer data screen.
+- [ ] From "Approval Needed", try navigating directly to `#/home` (or any other route) via the address bar/hash and confirm it bounces back to `#/not-authorized` rather than granting access.
+- [ ] Add that email to `allowedStaff` (Firestore Console or emulator), tap **Check Again**, and confirm it now lands on Home (or the tutorial, if this account hasn't seen it — see below).
+- [ ] Sign in with a Google account already on the allowlist and confirm it lands on Home (or Tutorial) directly, with no approval-needed detour.
 - [ ] For an account that hasn't seen the tutorial yet, confirm sign-in routes to the 4-slide tutorial instead of straight to Home, and that **Skip** and **Get Started** (final slide) both land on Home and mark the tutorial seen (won't show again for that account on that device).
-- [ ] Confirm reloading the app while already signed in goes straight to Home (no login flash, no repeated tutorial).
+- [ ] Confirm reloading the app while already signed in and approved goes straight to Home (no login flash, no repeated tutorial, no repeated approval check hitting the network).
+- [ ] Confirm reloading the app **offline** while already signed in and previously approved still reaches Home (authorization must be cached locally, not re-checked live every load).
 - [ ] Sign out (icon in the header on any non-Home screen) and confirm it returns to Login and blocks access to other routes until signed back in.
 
 ### 1. New Farmer registration

@@ -52,6 +52,17 @@ function handleRoute() {
         }
       }
 
+      // Being signed in (Firebase Auth) and being an approved staff
+      // member (on the allowedStaff allowlist) are separate checks - a
+      // route can require the former without the latter (see /not-authorized
+      // itself, via skipAuthorizationCheck) to avoid an infinite redirect loop.
+      if (hooks.isAuthorized && !route.options.public && !route.options.skipAuthorizationCheck) {
+        if (!hooks.isAuthorized()) {
+          navigate('#/not-authorized');
+          return;
+        }
+      }
+
       if (hooks.onRouteMatched) hooks.onRouteMatched(route.options, params, query);
       route.handler(params, query);
       return;

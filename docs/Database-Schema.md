@@ -113,14 +113,26 @@ These are anticipated, not implemented, so they're named here to keep future sch
 - `incentives/{incentiveId}` — bonus/incentive payments linked by `frn`, separate from `purchases` since they aren't tied to a single delivery.
 - `staff/{staffId}` — a richer staff-profile collection (role, assigned centre, etc.), if Firebase Auth's built-in user record ever stops being enough on its own.
 
-## Staff accounts (Firebase Auth)
+### `allowedStaff/{email}`
 
-Each staff member signs in with an individual username + password, backed by Firebase Authentication (email/password provider). Since staff don't have — or shouldn't need — a real email address to use the app, usernames are mapped to a synthetic email under a reserved domain: `usernameToEmail('jokello')` → `jokello@staff.malaikahoney.local` (see `public/js/lib/auth.js`). This is purely an implementation detail of fitting Firebase Auth's email/password provider to a username-only login UI — nothing is ever sent to that address.
+The admin-managed allowlist that gates real access. Document ID is the staff member's Google account email address (exactly as Google/Firebase Auth returns it, e.g. `jokello@gmail.com`).
 
-`registeredBy` / `recordedBy` on farmer/purchase documents now come from the signed-in user (`currentDisplayName()`) instead of free text, giving real accountability per record. See [[Config-Management]] "Staff account provisioning" for how new accounts are created.
+| Field | Type | Notes |
+|---|---|---|
+| `addedAt` | string or timestamp | Informational only — when the admin approved this email. Not read by the app; the document's mere existence is what grants access |
 
-Sessions persist locally (`browserLocalPersistence`) so a staff member who has signed in at least once while online can keep using the app fully offline afterward — `waitForAuthReady()` resolves from the cached session before the app decides whether to show the login screen, so this works even on an offline cold start.
+The document can otherwise be empty — the rules only check `exists()`, not any field value. See "Staff accounts" below and [[Config-Management]] "Staff account provisioning" for how entries are added.
+
+## Staff accounts (Google Sign-In + admin allowlist)
+
+Each staff member signs in with their own Google account (Firebase Auth's Google provider) — no passwords to create or manage, no admin step required just to let someone *try* signing in. Signing in with Google only creates a Firebase Auth session, though — it does **not** by itself grant access to farmer/purchase data. A signed-in account only gets real access once an admin adds that exact email address as a document in the `allowedStaff` collection (see above). Until then, the app shows an "Approval Needed" screen with the signed-in email displayed, so the person can tell their admin what to approve.
+
+This two-step design (self-service sign-in + admin-gated data access) replaces an earlier username/password design that turned out to be fragile in practice — accounts created directly in Firebase Console with real email addresses didn't match the app's synthetic-email convention, so nobody could actually sign in. Google Sign-In removes that whole class of mismatch, and the `allowedStaff` allowlist keeps access restricted to approved people despite sign-in itself being self-service (Google accounts aren't scoped to Malaika Honey, so without this gate literally anyone with a Google account could otherwise reach farmer/purchase data).
+
+`registeredBy` / `recordedBy` on farmer/purchase documents come from the signed-in user (`currentDisplayName()`, which prefers the Google account's display name), giving real accountability per record.
+
+Sessions persist locally (`browserLocalPersistence`) so a staff member who has signed in at least once while online can keep using the app fully offline afterward — `waitForAuthReady()` resolves from the cached session before the app decides whether to show the login screen. The *authorization* result (whether they're on the allowlist) is similarly cached locally (`localStorage`, keyed by uid) the first time it's confirmed online, so a returning approved staff member is never blocked from an authenticated screen just because they're offline — see `public/js/lib/auth.js` `refreshAuthorization`/`isAuthorizedLocally`. If an admin later removes someone from the allowlist, that only takes effect for a given device the next time it manages to reach the server (an inherent, accepted lag for an offline-first app — see [[Risk-Register]]).
 
 ## Firestore Security Rules (summary)
 
-See `firestore.rules` in the repo root. Every `farmers`, `purchases`, and `devices` operation now requires `request.auth != null` — the previous MVP rules (open read/write, no login) were replaced once Firebase Auth was added (see [[Risk-Register]] R1, now addressed). `devices/{deviceCode}` additionally allows `create` only if the document doesn't already exist yet, and disallows `update`/`delete` entirely, so a device code can never be silently overwritten. The retired `counters/{counterId}` collection still allows `read` for authenticated users (harmless, unused) but no longer allows `write`.
+See `firestore.rules` in the repo root. Every `farmers`, `purchases`, and `devices` operation requires **both** `request.auth != null` **and** the signed-in user's email existing in `allowedStaff` (an `isApprovedStaff()` helper function in the rules file encapsulates this check). `allowedStaff` itself only allows a signed-in user to `get` their own document (to check their own status) — nobody can list the roster or write to it from the client; entries are added only via Firebase Console's Firestore Data tab (or the Admin SDK, which bypasses rules). `devices/{deviceCode}` additionally allows `create` only if the document doesn't already exist yet, and disallows `update`/`delete` entirely, so a device code can never be silently overwritten. The retired `counters/{counterId}` collection still allows `read` for approved staff (harmless, unused) but no longer allows `write`.

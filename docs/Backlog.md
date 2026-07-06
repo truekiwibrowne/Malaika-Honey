@@ -24,7 +24,7 @@ This backlog is a living document — update it as priorities shift. See [[Chang
 
 | # | Item | Notes |
 |---|---|---|
-| 2.1 | ~~Staff login (username/password per staff member)~~ | ✅ Done — Firebase Auth, individual accounts, synthetic-email-per-username convention so no real email is needed (see [[Database-Schema]] "Staff accounts" and [[Config-Management]] "Staff account provisioning") |
+| 2.1 | ~~Staff login (per staff member)~~ | ✅ Done — Google Sign-In with an admin-approved `allowedStaff` allowlist gating real access (see [[Database-Schema]] "Staff accounts" and [[Config-Management]] "Staff account provisioning"). Replaced an earlier username/password design that turned out to be fragile — accounts created in Firebase Console with real emails didn't match the app's synthetic-email login convention |
 | 2.2 | ~~Firestore Security Rules locked down to authenticated staff only~~ | ✅ Done — every `farmers`/`purchases`/`devices` rule requires `request.auth != null` (see [[Risk-Register]] R1) |
 | 2.3 | Multi-centre support (`centre` field already reserved in schema) | So HQ can see which buying centre recorded what |
 | 2.4 | ~~Duplicate-farmer detection (same phone/name registered twice)~~ | ✅ Done in 0.2.0 — phone blocks, name warns via confirm dialog (application-level check, not a DB constraint — see [[Database-Schema]] and Risk R13) |
@@ -36,6 +36,7 @@ This backlog is a living document — update it as priorities shift. See [[Chang
 | 2.10 | ~~Visible sync status indicator~~ | ✅ Done — header badge shows Synced / Not Synced / Offline on every authenticated screen (`public/js/lib/sync.js`, `header.js`) |
 | 2.11 | ~~First-run in-app tutorial~~ | ✅ Done — shown once per staff account after first sign-in (`public/js/screens/tutorial.js`), skippable |
 | 2.12 | Role distinction between field staff and admin (all signed-in accounts currently have identical Firestore access) | Needed before the admin app (Milestone 3) shares the same accounts, and before any account should be restricted from e.g. deleting data |
+| 2.13 | In-app UI for managing the `allowedStaff` allowlist | Currently a manual Firestore Console step per new hire (see [[Config-Management]]); natural fit for the admin app (Milestone 3) once it exists |
 
 ## Milestone 3 — Admin / Management App
 

@@ -6,6 +6,22 @@ All notable changes to this project are documented here. Format loosely follows 
 
 Nothing yet.
 
+## [0.2.2] - 2026-07-06
+
+Replaces username/password login with Google Sign-In + an admin-approved allowlist.
+
+### Added
+- **Google Sign-In**: staff sign in with their own Google account (self-service, no admin step just to attempt sign-in) instead of a username/password created in Firebase Console.
+- **`allowedStaff` allowlist**: real data access is gated on the signed-in email existing in this Firestore collection, managed manually by an admin. Unapproved sign-ins land on a new "Approval Needed" screen showing their email, with a "Check Again" button.
+- Firestore Security Rules now require allowlist membership (not just `request.auth != null`) on every `farmers`/`purchases`/`devices` operation.
+
+### Changed
+- `public/js/lib/auth.js` no longer has a synthetic-email/password sign-in path; replaced with `signInWithGoogle()` (redirect-based, since the app is an installable standalone PWA where popups are unreliable) and `refreshAuthorization()`/`isAuthorizedLocally()`.
+- Login screen is now a single "Sign in with Google" button.
+
+### Fixed
+- The previous username/password login was effectively unusable in production: staff accounts created directly in Firebase Console with real email addresses never matched the app's `username@staff.malaikahoney.local` synthetic-email convention, so nobody could actually sign in.
+
 ## [0.2.1] - 2026-07-06
 
 Staff login, fully-offline registration/purchases, sync status indicator, header restructure, and a first-run tutorial.

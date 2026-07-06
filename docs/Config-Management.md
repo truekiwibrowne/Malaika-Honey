@@ -63,13 +63,18 @@ See [[Release-Management]] for the full branching and deployment workflow.
 
 ## Staff account provisioning
 
-There is no self-service sign-up and no in-app admin UI yet (that's Milestone 3 territory — see [[Backlog]]). New staff accounts are created manually:
+Staff sign themselves in with Google (self-service, no Console step needed just to attempt sign-in), but only get real access once their email is approved on the `allowedStaff` allowlist (see [[Database-Schema]] "Staff accounts"). There is no in-app admin UI for this yet (that's Milestone 3 territory — see [[Backlog]]), so approving someone is a manual Firestore write:
 
-1. Firebase Console → **Authentication** → **Users** → **Add user**.
-2. Email: the staff member's username plus the reserved synthetic domain, e.g. `jokello@staff.malaikahoney.local` (see [[Database-Schema]] "Staff accounts"). Nothing is ever sent to this address — it exists purely so Firebase Auth's email/password provider can be used with a username-only login screen.
-3. Set an initial password and share it with the staff member out-of-band; there's no in-app "forgot password" flow, so a forgotten password also means asking an admin to reset it from this same Console screen.
+1. Ask the staff member to open the app and tap **Sign in with Google** once — they'll land on an "Approval Needed" screen showing their signed-in email. They don't need to do anything else at this point.
+2. Firebase Console → **Firestore Database** → `allowedStaff` collection → **Add document**.
+3. Document ID: their exact email address as shown on their "Approval Needed" screen (e.g. `jokello@gmail.com`). No fields are required — the document existing at all is what grants access — but adding a note field (e.g. `addedAt`) is fine for your own record-keeping.
+4. Tell them to reopen the app and tap **Check Again** on the approval screen (or just reload the app) — they'll land on Home.
 
-Locally, create test accounts the same way against the **Auth emulator's** UI (`http://localhost:4000/auth` when `./.tools/run-emulators.sh` is running) instead of the real Console.
+**Prerequisite (one-time, per Firebase project):** the Google sign-in provider must be enabled in Firebase Console → **Authentication** → **Sign-in method** → **Google** → **Enable**, before any of the above works in production.
+
+To revoke access, delete that person's document from `allowedStaff` — note that a device that already has cached access won't be blocked until it next reaches the server (see [[Risk-Register]]).
+
+Locally, sign in against the **Auth emulator** (`http://localhost:4000/auth` when `./.tools/run-emulators.sh` is running) — it fakes the Google consent screen with a form, no real Google account needed — and add allowlist entries directly to the **Firestore emulator** the same way (Emulator UI's Firestore tab, or the Admin SDK, both of which bypass rules the way Console does against production).
 
 ## Who can change what
 

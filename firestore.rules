@@ -1,26 +1,43 @@
 rules_version = '2';
 
-// Staff must be signed in (Firebase Auth) for every operation below.
-// Every signed-in staff account currently has identical access - there is
-// no admin/field-staff role distinction yet (see docs/Backlog.md).
+// Staff must be signed in (Firebase Auth, Google Sign-In) AND their email
+// must be on the allowedStaff allowlist for every operation below. Every
+// approved staff account currently has identical access - there is no
+// admin/field-staff role distinction yet (see docs/Backlog.md).
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function isApprovedStaff() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && exists(/databases/$(database)/documents/allowedStaff/$(request.auth.token.email));
+    }
+
+    // Admin-managed allowlist of approved staff emails, keyed by email
+    // address (Console/Firestore Data tab is the only way to add/remove
+    // entries - see docs/Config-Management.md "Staff account provisioning").
+    // A signed-in user may only ever read their OWN entry (to check their
+    // own approval status), never list or write the collection.
+    match /allowedStaff/{email} {
+      allow get: if request.auth != null && request.auth.token.email == email;
+      allow list, create, update, delete: if false;
+    }
+
     match /farmers/{frn} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null
+      allow read: if isApprovedStaff();
+      allow create: if isApprovedStaff()
         && request.resource.data.keys().hasAll(['frn', 'fullName', 'phone']);
-      allow update: if request.auth != null;
+      allow update: if isApprovedStaff();
       allow delete: if false;
     }
 
     match /purchases/{purchaseId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null
+      allow read: if isApprovedStaff();
+      allow create: if isApprovedStaff()
         && request.resource.data.keys().hasAll(['frn', 'product', 'weightKg', 'totalUgx']);
       // Update is needed for the reconciliation flow (resolving a
       // frnUnverified purchase once the correct farmer is confirmed).
-      allow update: if request.auth != null;
+      allow update: if isApprovedStaff();
       allow delete: if false;
     }
 
@@ -28,7 +45,7 @@ service cloud.firestore {
     // (see docs/Database-Schema.md "devices/{deviceCode}"). Left in place,
     // unused, rather than deleted, in case any historical doc needs reading.
     match /counters/{counterId} {
-      allow read: if request.auth != null;
+      allow read: if isApprovedStaff();
       allow write: if false;
     }
 
@@ -39,8 +56,8 @@ service cloud.firestore {
     // second device's claim is silently rejected (accepted low-probability
     // risk, not auto-recovered - see Risk-Register).
     match /devices/{deviceCode} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
+      allow read: if isApprovedStaff();
+      allow create: if isApprovedStaff();
       allow update, delete: if false;
     }
 
