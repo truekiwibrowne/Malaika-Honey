@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.2.3';
+export const APP_VERSION = '0.2.4';
 
 export const PRODUCTS = [
   { id: 'honey', label: 'Honey' },

@@ -9,7 +9,7 @@
 
 export const firebaseConfig = {
   apiKey: 'AIzaSyCM4RbcKeHPa3nn7ykmncc3r5BRhKmh6XE',
-  authDomain: 'malaikahoney-78577.firebaseapp.com',
+  authDomain: 'malaikahoney-78577.web.app',
   projectId: 'malaikahoney-78577',
   storageBucket: 'malaikahoney-78577.firebasestorage.app',
   messagingSenderId: '404440263125',

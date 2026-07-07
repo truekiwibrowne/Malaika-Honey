@@ -41,7 +41,9 @@ The Firebase **web app config object** (`apiKey`, `authDomain`, `projectId`, `st
 
 The web app registration was created via `firebase apps:create WEB` and its config fetched via `firebase apps:sdkconfig WEB <appId>` — both one-time CLI operations against `malaikahoney-78577`. If the app is ever recreated or the project changes, regenerate this file the same way, or from Firebase Console → Project settings → General → "Your apps".
 
-Locally, none of this matters day-to-day: `public/js/lib/firebase.js` detects `localhost` and connects to the Firestore emulator instead, ignoring whether these values are real.
+Locally, none of this matters day-to-day: `public/js/lib/firebase.js` detects `localhost` and connects to the Firestore **and Auth** emulators instead, ignoring whether these values are real (the emulator handles sign-in entirely locally, with no cross-domain hop at all — see the `authDomain` note just below).
+
+**`authDomain` must match the domain the app is actually hosted on, not just any valid Firebase domain.** Firebase's default web app config points `authDomain` at `<project-id>.firebaseapp.com` regardless of which Firebase Hosting domain you actually serve the app from. If those differ (e.g. the app is served from `malaikahoney-78577.web.app` but `authDomain` is set to `malaikahoney-78577.firebaseapp.com`), Google Sign-In's redirect/popup round trip becomes cross-origin from the browser's perspective — and Safari's cross-site tracking prevention (especially on iOS) can silently block the storage handoff needed to complete it, bouncing the user back to the login screen with no visible error. Firebase Hosting automatically serves the required `/__/auth/**` handler on **every** domain associated with the project (`.web.app`, `.firebaseapp.com`, and any custom domain), so it's always safe to set `authDomain` to whichever domain your users actually load the app from.
 
 ## Environment variables / secrets
 
