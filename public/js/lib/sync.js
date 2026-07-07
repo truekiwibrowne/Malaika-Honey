@@ -44,6 +44,11 @@ export function onSyncStateChange(callback) {
   return () => listeners.delete(callback);
 }
 
+/** One-off synchronous read of 'offline' | 'not-synced' | 'synced'. */
+export function getSyncState() {
+  return currentState();
+}
+
 window.addEventListener('online', notify);
 window.addEventListener('offline', notify);
 

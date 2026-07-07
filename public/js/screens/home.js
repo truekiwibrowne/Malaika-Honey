@@ -2,6 +2,20 @@ import { el, mount } from '../lib/ui.js';
 import { iconEl } from '../lib/icons.js';
 import { APP_VERSION } from '../lib/constants.js';
 import { getUnverifiedPurchases } from '../lib/db.js';
+import { signOutStaff } from '../lib/auth.js';
+import { getSyncState } from '../lib/sync.js';
+
+function handleSignOut() {
+  if (getSyncState() !== 'synced') {
+    const proceed = window.confirm(
+      'Some of your work hasn’t finished syncing yet. If you sign out now, it may not be saved to the server. Sign out anyway?'
+    );
+    if (!proceed) return;
+  } else if (!window.confirm('Sign out?')) {
+    return;
+  }
+  signOutStaff();
+}
 
 export function renderHome(root) {
   const reconcileBanner = el('div', { hidden: true });
@@ -29,6 +43,7 @@ export function renderHome(root) {
         [iconEl('honeyJar'), 'Buy Produce']
       ),
     ]),
+    el('button', { type: 'button', class: 'btn btn-secondary', onClick: handleSignOut }, [iconEl('logout'), 'Sign Out']),
     el('div', { class: 'home-footer' }, [
       el('p', {}, 'Malaika Honey Field App'),
       el('p', {}, 'v' + APP_VERSION),

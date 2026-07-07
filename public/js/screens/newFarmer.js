@@ -206,13 +206,15 @@ export function renderNewFarmer(root) {
 export function renderNewFarmerSuccess(root, { frn }) {
   mount(
     root,
-    el('div', { class: 'confirm-icon' }, [iconEl('check')]),
-    el('h1', { style: 'text-align:center' }, 'Farmer Created'),
-    el('p', { class: 'welcome', style: 'text-align:center' }, 'Registration complete.'),
-    el('div', { class: 'frn-badge', style: 'align-self:center' }, 'FRN ' + frn),
-    el('hr', { class: 'hr' }),
-    el('a', { href: '#/buy/' + frn, class: 'btn btn-yellow' }, [iconEl('honeyJar'), 'Buy Produce']),
-    el('a', { href: '#/card/' + frn, class: 'btn btn-outline' }, [iconEl('idCard'), 'Farmer Card']),
-    el('a', { href: '#/home', class: 'btn btn-secondary' }, 'Done')
+    el('div', { class: 'centered-screen' }, [
+      el('div', { class: 'confirm-icon' }, [iconEl('check')]),
+      el('h1', { style: 'text-align:center' }, 'Farmer Created'),
+      el('p', { class: 'welcome', style: 'text-align:center' }, 'Registration complete.'),
+      el('div', { class: 'frn-badge', style: 'align-self:center' }, 'FRN ' + frn),
+      el('hr', { class: 'hr' }),
+      el('a', { href: '#/buy/' + frn, class: 'btn btn-yellow' }, [iconEl('honeyJar'), 'Buy Produce']),
+      el('a', { href: '#/card/' + frn, class: 'btn btn-outline' }, [iconEl('idCard'), 'Farmer Card']),
+      el('a', { href: '#/home', class: 'btn btn-secondary' }, 'Done'),
+    ])
   );
 }

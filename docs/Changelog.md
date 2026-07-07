@@ -6,7 +6,18 @@ All notable changes to this project are documented here. Format loosely follows 
 
 Nothing yet.
 
-## [0.2.4] - 2026-07-07
+## [0.2.5] - 2026-07-07
+
+UI polish pass based on real-device feedback.
+
+### Changed
+- Sign-out moved from a header icon (shown on every sub-screen) to a single "Sign Out" button at the bottom of the Home screen — the header no longer has a logout control anywhere.
+- Header logo restored to a larger, more visually prominent size (had shrunk during the Phase 4 header restructure).
+- Tutorial now renders as a full-screen modal overlay (dimmed backdrop, no header/back/home/sync-badge visible underneath) instead of a regular screen, and supports swiping left/right between slides in addition to the Next/Skip buttons and now-tappable dots.
+- Every screen except the New Farmer registration form and the Buy Produce purchase form (both long, top-anchored data-entry forms) is now vertically centered instead of pinned to the top of the screen.
+
+### Fixed
+- Buy Produce's "no match" message referenced "the FRN below" when the FRN field is actually above that message; corrected to "above."
 
 ### Fixed
 - Google Sign-In still looped back to the login screen after 0.2.3's popup-vs-redirect change, on both the popup and redirect paths. The actual root cause: `authDomain` in `firebase.config.js` was set to `malaikahoney-78577.firebaseapp.com`, but the app is served from `malaikahoney-78577.web.app` — a different origin from the browser's perspective. That mismatch is what made the auth round trip cross-origin and vulnerable to Safari's cross-site tracking prevention, regardless of popup vs. redirect. Fixed by setting `authDomain` to `malaikahoney-78577.web.app` to match the app's actual hosting domain (see [[Config-Management]] "Firebase Web App configuration" and [[Risk-Register]] R18).

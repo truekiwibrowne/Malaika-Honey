@@ -26,6 +26,14 @@ const SLIDES = [
   },
 ];
 
+const SWIPE_THRESHOLD = 40;
+
+/**
+ * Renders as a full-viewport modal (position: fixed, its own backdrop)
+ * rather than into the normal screen flow - this deliberately covers the
+ * header entirely (no back/home/sync-badge visible during the tutorial),
+ * since it's a one-time first-run overlay, not a regular screen.
+ */
 export function renderTutorial(root) {
   let index = 0;
 
@@ -35,13 +43,25 @@ export function renderTutorial(root) {
   const dots = el('div', { class: 'tutorial-dots' });
   const nextBtn = el('button', { type: 'button', class: 'btn btn-maroon' });
 
+  function goTo(newIndex) {
+    index = Math.max(0, Math.min(SLIDES.length - 1, newIndex));
+    renderSlide();
+  }
+
   function renderSlide() {
     const slide = SLIDES[index];
     iconBox.replaceChildren(iconEl(slide.icon));
     titleEl.textContent = slide.title;
     bodyEl.textContent = slide.body;
     dots.replaceChildren(
-      ...SLIDES.map((_, i) => el('span', { class: 'tutorial-dot' + (i === index ? ' active' : '') }))
+      ...SLIDES.map((_, i) =>
+        el('button', {
+          type: 'button',
+          class: 'tutorial-dot' + (i === index ? ' active' : ''),
+          'aria-label': 'Go to slide ' + (i + 1),
+          onClick: () => goTo(i),
+        })
+      )
     );
     nextBtn.textContent = index === SLIDES.length - 1 ? 'Get Started' : 'Next';
   }
@@ -54,23 +74,35 @@ export function renderTutorial(root) {
 
   nextBtn.addEventListener('click', () => {
     if (index < SLIDES.length - 1) {
-      index += 1;
-      renderSlide();
+      goTo(index + 1);
     } else {
       finish();
     }
   });
 
-  renderSlide();
-
-  mount(
-    root,
+  const modal = el('div', { class: 'tutorial-modal' }, [
     iconBox,
     titleEl,
     bodyEl,
     dots,
     el('hr', { class: 'hr' }),
     nextBtn,
-    el('button', { type: 'button', class: 'btn btn-secondary', onClick: finish }, 'Skip')
-  );
+    el('button', { type: 'button', class: 'btn btn-secondary', onClick: finish }, 'Skip'),
+  ]);
+
+  let touchStartX = null;
+  modal.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+  });
+  modal.addEventListener('touchend', (e) => {
+    if (touchStartX === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartX;
+    touchStartX = null;
+    if (Math.abs(deltaX) < SWIPE_THRESHOLD) return;
+    goTo(deltaX < 0 ? index + 1 : index - 1);
+  });
+
+  renderSlide();
+
+  mount(root, el('div', { class: 'tutorial-overlay' }, [modal]));
 }

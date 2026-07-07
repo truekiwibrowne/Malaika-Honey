@@ -188,7 +188,7 @@ export function renderBuyProduceEntry(root) {
       const farmers = await searchFarmers(value);
       if (!farmers.length) {
         resultsBox.replaceChildren(
-          el('div', { class: 'empty-state' }, 'No match on this device yet. If you are offline, you can still continue with the FRN below.')
+          el('div', { class: 'empty-state' }, 'No match on this device yet. If you are offline, you can still continue with the FRN above.')
         );
         return;
       }
@@ -208,7 +208,7 @@ export function renderBuyProduceEntry(root) {
     } catch (err) {
       console.error(err);
       resultsBox.replaceChildren(
-        el('div', { class: 'empty-state' }, 'Search failed. If you are offline, you can still continue with the FRN below.')
+        el('div', { class: 'empty-state' }, 'Search failed. If you are offline, you can still continue with the FRN above.')
       );
     }
   }
@@ -221,11 +221,13 @@ export function renderBuyProduceEntry(root) {
 
   mount(
     root,
-    el('h1', {}, 'Buy Produce'),
-    el('p', { class: 'welcome' }, 'Enter the farmer’s FRN, name or phone.'),
-    el('div', { class: 'field' }, [frnInput]),
-    continueBtn,
-    resultsBox
+    el('div', { class: 'centered-screen' }, [
+      el('h1', {}, 'Buy Produce'),
+      el('p', { class: 'welcome' }, 'Enter the farmer’s FRN, name or phone.'),
+      el('div', { class: 'field' }, [frnInput]),
+      continueBtn,
+      resultsBox,
+    ])
   );
 
   frnInput.focus();
@@ -234,12 +236,14 @@ export function renderBuyProduceEntry(root) {
 export function renderBuyProduceSuccess(root, { frn }) {
   mount(
     root,
-    el('div', { class: 'confirm-icon' }, [iconEl('check')]),
-    el('h1', { style: 'text-align:center' }, 'Purchase Saved'),
-    el('p', { class: 'welcome', style: 'text-align:center' }, 'What would you like to do next?'),
-    el('hr', { class: 'hr' }),
-    el('a', { href: '#/buy/' + frn, class: 'btn btn-yellow' }, [iconEl('honeyJar'), 'Record another purchase']),
-    el('a', { href: '#/buy', class: 'btn btn-blue' }, [iconEl('person'), 'Find another farmer']),
-    el('a', { href: '#/home', class: 'btn btn-secondary' }, [iconEl('home'), 'Return Home'])
+    el('div', { class: 'centered-screen' }, [
+      el('div', { class: 'confirm-icon' }, [iconEl('check')]),
+      el('h1', { style: 'text-align:center' }, 'Purchase Saved'),
+      el('p', { class: 'welcome', style: 'text-align:center' }, 'What would you like to do next?'),
+      el('hr', { class: 'hr' }),
+      el('a', { href: '#/buy/' + frn, class: 'btn btn-yellow' }, [iconEl('honeyJar'), 'Record another purchase']),
+      el('a', { href: '#/buy', class: 'btn btn-blue' }, [iconEl('person'), 'Find another farmer']),
+      el('a', { href: '#/home', class: 'btn btn-secondary' }, [iconEl('home'), 'Return Home']),
+    ])
   );
 }

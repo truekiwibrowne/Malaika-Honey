@@ -84,19 +84,23 @@ export async function renderReconcile(root) {
     if (!purchases.length) {
       mount(
         root,
-        el('h1', {}, 'Fix Unverified Purchases'),
-        el('div', { class: 'confirm-icon' }, [iconEl('check')]),
-        el('div', { class: 'empty-state' }, 'Nothing to fix — every purchase is matched to a farmer.')
+        el('div', { class: 'centered-screen' }, [
+          el('h1', {}, 'Fix Unverified Purchases'),
+          el('div', { class: 'confirm-icon' }, [iconEl('check')]),
+          el('div', { class: 'empty-state' }, 'Nothing to fix — every purchase is matched to a farmer.'),
+        ])
       );
       return;
     }
 
     mount(
       root,
-      el('h1', {}, 'Fix Unverified Purchases'),
-      el('p', { class: 'welcome' }, purchases.length + ' purchase' + (purchases.length === 1 ? '' : 's') + ' saved with an FRN that wasn’t found on this device at the time. Link each one to the correct farmer.'),
-      el('hr', { class: 'hr' }),
-      ...purchases.map((p) => renderPurchaseRow(p, load))
+      el('div', { class: 'centered-screen' }, [
+        el('h1', {}, 'Fix Unverified Purchases'),
+        el('p', { class: 'welcome' }, purchases.length + ' purchase' + (purchases.length === 1 ? '' : 's') + ' saved with an FRN that wasn’t found on this device at the time. Link each one to the correct farmer.'),
+        el('hr', { class: 'hr' }),
+        ...purchases.map((p) => renderPurchaseRow(p, load)),
+      ])
     );
   }
 
