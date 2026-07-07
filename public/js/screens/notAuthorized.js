@@ -33,16 +33,18 @@ export function renderNotAuthorized(root) {
 
   mount(
     root,
-    el('div', { class: 'confirm-icon', style: 'color:var(--color-yellow-dark)' }, [iconEl('person')]),
-    el('h1', { style: 'text-align:center' }, 'Approval Needed'),
-    el(
-      'p',
-      { class: 'welcome', style: 'text-align:center' },
-      'You’re signed in as ' + email + ', but an admin needs to approve this account before you can use the app.'
-    ),
-    el('hr', { class: 'hr' }),
-    checkBtn,
-    statusBox,
-    el('button', { type: 'button', class: 'btn btn-secondary', onClick: () => signOutStaff() }, 'Sign Out')
+    el('div', { class: 'centered-screen' }, [
+      el('div', { class: 'confirm-icon', style: 'color:var(--color-yellow-dark)' }, [iconEl('person')]),
+      el('h1', { style: 'text-align:center' }, 'Approval Needed'),
+      el(
+        'p',
+        { class: 'welcome', style: 'text-align:center' },
+        'You’re signed in as ' + email + ', but an admin needs to approve this account before you can use the app.'
+      ),
+      el('hr', { class: 'hr' }),
+      checkBtn,
+      statusBox,
+      el('button', { type: 'button', class: 'btn btn-secondary', onClick: () => signOutStaff() }, 'Sign Out'),
+    ])
   );
 }

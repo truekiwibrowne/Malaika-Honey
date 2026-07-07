@@ -28,14 +28,16 @@ export function renderLogin(root) {
 
   mount(
     root,
-    el('h1', {}, 'Sign In'),
-    el('p', { class: 'welcome' }, 'Sign in with your Google account to use the app.'),
-    errorBox,
-    signInBtn,
-    el(
-      'p',
-      { class: 'hint', style: 'text-align:center;margin-top:10px' },
-      'Your account must be approved by an admin before you can use the app — if you’re new, sign in once and then let your admin know so they can approve your email.'
-    )
+    el('div', { class: 'centered-screen' }, [
+      el('h1', { style: 'text-align:center' }, 'Sign In'),
+      el('p', { class: 'welcome', style: 'text-align:center' }, 'Sign in with your Google account to use the app.'),
+      errorBox,
+      signInBtn,
+      el(
+        'p',
+        { class: 'hint', style: 'text-align:center;margin-top:10px' },
+        'Your account must be approved by an admin before you can use the app — if you’re new, sign in once and then let your admin know so they can approve your email.'
+      ),
+    ])
   );
 }

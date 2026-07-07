@@ -1,5 +1,6 @@
 import {
   GoogleAuthProvider,
+  signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
   signOut,
@@ -17,6 +18,8 @@ function friendlyAuthError(err) {
     case 'auth/popup-closed-by-user':
     case 'auth/cancelled-popup-request':
       return 'Sign-in was cancelled.';
+    case 'auth/popup-blocked':
+      return 'Your browser blocked the sign-in popup. Please allow popups for this site and try again.';
     case 'auth/account-exists-with-different-credential':
       return 'This email is already linked to a different sign-in method.';
     default:
@@ -24,21 +27,41 @@ function friendlyAuthError(err) {
   }
 }
 
+function isStandalonePwa() {
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
 /**
- * Uses a redirect, not a popup - popups are unreliable (often silently
- * blocked) once the app is installed to the home screen as a standalone
- * PWA (see manifest.webmanifest "display": "standalone"), since there's
- * no proper separate window context for a popup in that mode.
+ * Uses a popup for a normal browser tab - this is the reliable path.
+ * signInWithRedirect's round trip through Firebase's separate authDomain
+ * (typically <project>.firebaseapp.com, a different origin than the app
+ * itself) can silently fail to persist the session on return, particularly
+ * on iOS Safari's cross-site tracking prevention - the user ends up back
+ * on the login screen with no visible error. A popup avoids that hop
+ * entirely. Falls back to a redirect only once the app is installed to
+ * the home screen as a standalone PWA (manifest.webmanifest "display":
+ * "standalone"), where a popup has no separate window context to open
+ * into.
  */
-export function signInWithGoogle() {
-  return signInWithRedirect(auth, googleProvider);
+export async function signInWithGoogle() {
+  if (isStandalonePwa()) {
+    return signInWithRedirect(auth, googleProvider);
+  }
+  try {
+    await signInWithPopup(auth, googleProvider);
+  } catch (err) {
+    throw new Error(friendlyAuthError(err));
+  }
 }
 
 /**
  * Call once at app boot to surface any error from a just-completed
- * redirect sign-in (e.g. cancelled, network failure). The resulting user
- * (if any) also arrives via the normal onAuthStateChanged/waitForAuthReady
- * flow - this is only needed for error surfacing, not for the happy path.
+ * redirect sign-in (e.g. cancelled, network failure) - only relevant on
+ * the standalone-PWA redirect path above; a no-op (resolves to null) for
+ * popup-based sign-ins, since there's no pending redirect to consume. The
+ * resulting user (if any) also arrives via the normal
+ * onAuthStateChanged/waitForAuthReady flow - this is only needed for
+ * error surfacing, not for the happy path.
  */
 export async function consumeRedirectResult() {
   try {

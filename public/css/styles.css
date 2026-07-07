@@ -140,6 +140,15 @@ html, body {
   overflow-x: hidden;
 }
 
+.centered-screen {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: inherit;
+}
+
 .screen form {
   display: flex;
   flex-direction: column;

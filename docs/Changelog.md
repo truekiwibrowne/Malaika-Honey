@@ -6,6 +6,12 @@ All notable changes to this project are documented here. Format loosely follows 
 
 Nothing yet.
 
+## [0.2.3] - 2026-07-07
+
+### Fixed
+- Google Sign-In silently failed and bounced back to the login screen on iOS Safari, with no visible error. Root cause: `signInWithRedirect`'s round trip through Firebase's separate `authDomain` (`malaikahoney-78577.firebaseapp.com`, a different origin than the app itself) doesn't reliably persist the session on return under Safari's cross-site tracking prevention. Switched to `signInWithPopup` for normal browser-tab use (the common case), keeping `signInWithRedirect` only as a fallback once the app is installed to the home screen as a standalone PWA (where a popup has no separate window to open into).
+- Also fixed: the login and "Approval Needed" screens rendered pinned to the top of the page instead of vertically centered.
+
 ## [0.2.2] - 2026-07-06
 
 Replaces username/password login with Google Sign-In + an admin-approved allowlist.
