@@ -61,6 +61,38 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Admin-editable reference data (see docs/Database-Schema.md and
+    // docs/Config-Management.md "Editing reference data") - drives the
+    // Buy Produce and New Farmer forms' dropdown/choice options and, for
+    // newFarmerFields, the New Farmer form's field set itself. Read-only
+    // for the field app; entries are only ever added/edited/deactivated
+    // via Firebase Console's Firestore Data tab (or the Admin SDK) until
+    // the admin app exists - same pattern as allowedStaff.
+    match /products/{productId} {
+      allow read: if isApprovedStaff();
+      allow write: if false;
+    }
+    match /grades/{gradeId} {
+      allow read: if isApprovedStaff();
+      allow write: if false;
+    }
+    match /paymentMethods/{methodId} {
+      allow read: if isApprovedStaff();
+      allow write: if false;
+    }
+    match /farmSizes/{sizeId} {
+      allow read: if isApprovedStaff();
+      allow write: if false;
+    }
+    match /districts/{districtId} {
+      allow read: if isApprovedStaff();
+      allow write: if false;
+    }
+    match /newFarmerFields/{fieldId} {
+      allow read: if isApprovedStaff();
+      allow write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

@@ -6,6 +6,20 @@ All notable changes to this project are documented here. Format loosely follows 
 
 Nothing yet.
 
+## [0.3.0] - 2026-07-07
+
+Products, grades, payment methods, farm sizes, districts, and the New Farmer form's own field set are now admin-editable Firestore collections instead of hardcoded lists, ahead of the future admin app owning this UI.
+
+### Added
+- **`public/js/lib/referenceData.js`**: fetches `products`, `grades`, `paymentMethods`, `farmSizes`, `districts`, and `newFarmerFields` from Firestore, with a hardcoded fallback (today's exact defaults) for a fresh install with zero network activity.
+- **Dynamic New Farmer form**: every field except Full Name and Phone (dateOfBirth, gender, email, village, district, farmSize, hives, otherCropsOrLivestock, avgHarvestKgPerYear, usesChemicals, wantsTraining) is now driven by the `newFarmerFields` Firestore schema — an admin can add new fields, deactivate old ones (without touching existing farmers' data), reorder, and toggle required, all via Firebase Console today. Any field an admin adds beyond the built-in set is saved into a new `farmers/{frn}.customFields` map.
+- **Country seam**: `public/js/lib/country.js` `getCountryCode()` filters the district list by a per-device country code (defaults to `'UG'`) — the single place automatic (IP-based) or admin-configured detection can be added later.
+- Buy Produce's Product/Grade/Payment choices now read from the same Firestore collections instead of static arrays in `constants.js`.
+- An option literally valued `"Other"` on any select/choice field (not just District) now generically reveals a free-text fallback input.
+
+### Fixed
+- The Product choice-chip row could stretch a lone trailing item (e.g. "Bee Venom") to the full row width when the count didn't divide evenly — capped chip width so wrapping looks consistent regardless of item count.
+
 ## [0.2.5] - 2026-07-07
 
 UI polish pass based on real-device feedback.

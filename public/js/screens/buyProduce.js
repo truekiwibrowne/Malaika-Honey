@@ -1,18 +1,17 @@
 import { el, mount } from '../lib/ui.js';
 import { navigate } from '../router.js';
 import { getFarmerByFrnFromCache, savePurchase, searchFarmers } from '../lib/db.js';
-import { PRODUCTS, GRADES, PAYMENT_METHODS, formatUgx } from '../lib/constants.js';
+import { formatUgx } from '../lib/constants.js';
+import { getProducts, getGrades, getPaymentMethods } from '../lib/referenceData.js';
 import { iconEl } from '../lib/icons.js';
 
 function resetSaveBtnLabel(btn) {
   btn.replaceChildren(iconEl('check'), document.createTextNode(' Save'));
 }
 
-function choiceGroup(options, getLabel, getId, onSelect) {
+function choiceGroup(options, onSelect) {
   const group = el('div', { class: 'choice-group' });
   options.forEach((opt) => {
-    const id = getId(opt);
-    const label = getLabel(opt);
     const chip = el(
       'button',
       {
@@ -21,10 +20,10 @@ function choiceGroup(options, getLabel, getId, onSelect) {
         onClick: () => {
           group.querySelectorAll('.choice-chip').forEach((c) => c.classList.remove('selected'));
           chip.classList.add('selected');
-          onSelect(id);
+          onSelect(opt.id);
         },
       },
-      label
+      opt.label
     );
     group.appendChild(chip);
   });
@@ -40,7 +39,11 @@ function choiceGroup(options, getLabel, getId, onSelect) {
  * purchase still saves (see db.js savePurchase), just flagged for
  * reconciliation later.
  */
-function renderPurchaseForm(root, { frn, farmerName }) {
+async function renderPurchaseForm(root, { frn, farmerName }) {
+  mount(root, el('p', { class: 'hint' }, 'Loading form…'));
+
+  const [products, grades, paymentMethods] = await Promise.all([getProducts(), getGrades(), getPaymentMethods()]);
+
   const state = { product: null, grade: null, paymentMethod: null };
 
   const errorBox = el('div', { class: 'field-error', hidden: true });
@@ -59,14 +62,9 @@ function renderPurchaseForm(root, { frn, farmerName }) {
   weightInput.addEventListener('input', recalcTotal);
   priceInput.addEventListener('input', recalcTotal);
 
-  const productGroup = choiceGroup(PRODUCTS, (p) => p.label, (p) => p.id, (id) => (state.product = id));
-  const gradeGroup = choiceGroup(GRADES, (g) => g, (g) => g, (id) => (state.grade = id));
-  const paymentGroup = choiceGroup(
-    PAYMENT_METHODS,
-    (p) => p.label,
-    (p) => p.id,
-    (id) => (state.paymentMethod = id)
-  );
+  const productGroup = choiceGroup(products, (id) => (state.product = id));
+  const gradeGroup = choiceGroup(grades, (id) => (state.grade = id));
+  const paymentGroup = choiceGroup(paymentMethods, (id) => (state.paymentMethod = id));
 
   const saveBtn = el('button', { type: 'submit', class: 'btn btn-green' });
   resetSaveBtnLabel(saveBtn);
@@ -146,7 +144,7 @@ export async function renderBuyProduce(root, { frn }) {
   mount(root, el('p', { class: 'hint' }, 'Loading farmer…'));
 
   const farmer = await getFarmerByFrnFromCache(frn.trim().toUpperCase());
-  renderPurchaseForm(root, {
+  await renderPurchaseForm(root, {
     frn: frn.trim().toUpperCase(),
     farmerName: farmer ? farmer.fullName : null,
   });

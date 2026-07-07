@@ -321,6 +321,7 @@ html, body {
 .choice-chip {
   flex: 1 1 auto;
   min-width: 80px;
+  max-width: 160px;
   min-height: 44px;
   border-radius: var(--radius-md);
   border: 2px solid var(--color-border);

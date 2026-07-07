@@ -78,6 +78,20 @@ To revoke access, delete that person's document from `allowedStaff` — note tha
 
 Locally, sign in against the **Auth emulator** (`http://localhost:4000/auth` when `./.tools/run-emulators.sh` is running) — it fakes the Google consent screen with a form, no real Google account needed — and add allowlist entries directly to the **Firestore emulator** the same way (Emulator UI's Firestore tab, or the Admin SDK, both of which bypass rules the way Console does against production).
 
+## Editing reference data
+
+Products, grades, payment methods, farm sizes, districts, and the New Farmer form's own field set are all admin-editable Firestore collections (see [[Database-Schema]] "Admin-editable reference data"), not hardcoded lists — the same "Console is the admin UI for now" pattern as staff provisioning above, until the dedicated admin app exists.
+
+1. Firebase Console → **Firestore Database** → the relevant collection (`products`, `grades`, `paymentMethods`, `farmSizes`, `districts`, or `newFarmerFields`).
+2. **Add document** to add a new option/field, or open an existing document to edit/deactivate it (set `active: false` rather than deleting, so historical records referencing it stay meaningful).
+3. Changes take effect the next time a device reconnects and re-fetches that collection (each is fetched once per app load, not live-updated mid-session).
+
+**Important:** these collections ship empty. The field app falls back to today's hardcoded defaults only while a collection is completely empty — the moment you add even one document, the fallback stops applying for that collection entirely (it's a swap, not a merge). So the **first** edit to any of these collections should include every value you want to keep, not just the new one — e.g. adding a 4th grade means creating documents for `A`, `B`, `C`, **and** the new grade, not just the new one alone.
+
+For `newFarmerFields` specifically: field ids `dateOfBirth`, `gender`, `email`, `village`, `district`, `farmSize`, `hivesTraditional`, `hivesKtb`, `hivesModern`, `otherCropsOrLivestock`, `avgHarvestKgPerYear`, `usesChemicals`, `wantsTraining` map onto existing farmer record fields — anything else is saved under `customFields` instead (see [[Database-Schema]]).
+
+Locally, edit the same collections in the **Firestore emulator** (Emulator UI's Firestore tab, or the Admin SDK) — changes there never touch production data.
+
 ## Who can change what
 
 Until Firebase Auth/roles exist (Backlog 2.1), anyone with the GitHub repo and Firebase console access can change configuration. Treat Firebase console access the same as production database access — don't share the project owner login broadly; add collaborators by email in Firebase Console → Project settings → Users and permissions instead.

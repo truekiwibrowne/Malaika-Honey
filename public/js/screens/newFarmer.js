@@ -1,90 +1,120 @@
 import { el, mount } from '../lib/ui.js';
 import { navigate } from '../router.js';
 import { createFarmer, findFarmerByPhone, findFarmerByName } from '../lib/db.js';
-import { DISTRICTS, FARM_SIZES, GENDERS } from '../lib/constants.js';
 import { iconEl } from '../lib/icons.js';
+import { getNewFarmerFields, getDistricts, getFarmSizes } from '../lib/referenceData.js';
 
 function resetSaveBtnLabel(btn) {
   btn.replaceChildren(iconEl('check'), document.createTextNode(' Save Farmer'));
 }
 
-function choiceGroup(name, options, selectedValue, onSelect) {
-  const group = el('div', { class: 'choice-group', 'data-group': name });
+function choiceGroup(options, selectedValue, onSelect) {
+  const group = el('div', { class: 'choice-group' });
   options.forEach((opt) => {
-    const id = typeof opt === 'string' ? opt : opt.id;
-    const label = typeof opt === 'string' ? opt : opt.label;
     const chip = el(
       'button',
       {
         type: 'button',
-        class: 'choice-chip' + (id === selectedValue ? ' selected' : ''),
+        class: 'choice-chip' + (opt.id === selectedValue ? ' selected' : ''),
         onClick: () => {
           group.querySelectorAll('.choice-chip').forEach((c) => c.classList.remove('selected'));
           chip.classList.add('selected');
-          onSelect(id);
+          onSelect(opt.id);
         },
       },
-      label
+      opt.label
     );
     group.appendChild(chip);
   });
   return group;
 }
 
-export function renderNewFarmer(root) {
+const YES_NO = [{ id: 'yes', label: 'Yes' }, { id: 'no', label: 'No' }];
 
-  const state = {
-    gender: null,
-    farmSize: null,
-    usesChemicals: null,
-    wantsTraining: null,
-    district: '',
-  };
+/**
+ * Renders one field from the newFarmerFields schema (see referenceData.js)
+ * as a labeled form control, wiring its value into `state[field.id]`.
+ * `select`/`choice` fields whose options include one literally valued
+ * "Other" get a secondary free-text input, generalizing what used to be
+ * District-only special-casing to any admin-configured field.
+ */
+function renderField(field, options, state) {
+  const label = el('label', {}, field.label + (field.required ? ' *' : ''));
+  const otherInput = el('input', { type: 'text', placeholder: 'Please specify', hidden: true });
+  const children = [label];
 
+  function handleValue(value) {
+    state[field.id] = value;
+    if (otherInput) otherInput.hidden = value !== 'Other';
+  }
+
+  if (field.type === 'select') {
+    const select = el(
+      'select',
+      { onChange: (e) => handleValue(e.target.value) },
+      [el('option', { value: '' }, field.placeholder || ('Select ' + field.label)), ...options.map((o) => el('option', { value: o.id }, o.label))]
+    );
+    children.push(select, otherInput);
+  } else if (field.type === 'choice') {
+    children.push(choiceGroup(options, null, handleValue), otherInput);
+  } else if (field.type === 'toggle') {
+    children.push(choiceGroup(YES_NO, null, handleValue));
+  } else {
+    // text, tel, email, number, date
+    const input = el('input', {
+      type: field.type,
+      placeholder: field.placeholder || '',
+      onInput: (e) => (state[field.id] = e.target.value),
+    });
+    children.push(input);
+  }
+
+  return el('div', { class: 'field' }, children);
+}
+
+function hasValue(field, state) {
+  const raw = state[field.id];
+  if (raw === undefined || raw === null) return false;
+  return String(raw).trim().length > 0;
+}
+
+/** Resolves any `state[field.id] === 'Other'` entries to the typed free-text value from that field's otherInput, reading it from the DOM at submit time. */
+function resolveOtherValues(fieldsWithNodes, state) {
+  fieldsWithNodes.forEach(({ field, otherInput }) => {
+    if (state[field.id] === 'Other' && otherInput) {
+      state[field.id] = otherInput.value.trim();
+    }
+  });
+}
+
+export async function renderNewFarmer(root) {
+  mount(root, el('p', { class: 'hint' }, 'Loading form…'));
+
+  const [fields, districts, farmSizes] = await Promise.all([getNewFarmerFields(), getDistricts(), getFarmSizes()]);
+  const activeFields = fields.filter((f) => f.active !== false).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  const state = {};
   const errorBox = el('div', { class: 'field-error', hidden: true });
-
   const fullNameInput = el('input', { type: 'text', id: 'fullName', placeholder: 'e.g. John Okello' });
   const phoneInput = el('input', { type: 'tel', id: 'phone', placeholder: 'e.g. 077xxxxxxx' });
-  const villageInput = el('input', { type: 'text', id: 'village', placeholder: 'e.g. Awuvu' });
-  const dobInput = el('input', { type: 'date', id: 'dob' });
-  const emailInput = el('input', { type: 'email', id: 'email', placeholder: 'Optional' });
-  const otherCropsInput = el('input', { type: 'text', id: 'otherCrops', placeholder: 'Optional' });
-  const harvestInput = el('input', { type: 'number', id: 'harvest', min: '0', placeholder: 'kg per year' });
-  const hivesTrad = el('input', { type: 'number', id: 'hivesTrad', min: '0', value: '0' });
-  const hivesKtb = el('input', { type: 'number', id: 'hivesKtb', min: '0', value: '0' });
-  const hivesModern = el('input', { type: 'number', id: 'hivesModern', min: '0', value: '0' });
 
-  const districtSelect = el(
-    'select',
-    {
-      id: 'district',
-      onChange: (e) => {
-        state.district = e.target.value;
-        otherDistrictInput.hidden = e.target.value !== 'Other';
-      },
-    },
-    [el('option', { value: '' }, 'Select district'), ...DISTRICTS.map((d) => el('option', { value: d }, d))]
-  );
-  const otherDistrictInput = el('input', {
-    type: 'text',
-    placeholder: 'Type district name',
-    hidden: true,
+  const fieldNodes = []; // { field, otherInput } for resolving "Other" at submit time
+  const sections = [];
+  // Full Name/Phone above are already grouped under a hardcoded "Personal
+  // Information" heading (they aren't part of the fetched schema) - start
+  // here so the loop doesn't print that same heading a second time for
+  // whichever fields also happen to share that section.
+  let currentSection = 'Personal Information';
+  activeFields.forEach((field) => {
+    const options = field.options || (field.optionsSource === 'districts' ? districts : field.optionsSource === 'farmSizes' ? farmSizes : []);
+    if (field.section !== currentSection) {
+      currentSection = field.section;
+      sections.push(el('h2', {}, currentSection));
+    }
+    const fieldEl = renderField(field, options, state);
+    fieldNodes.push({ field, otherInput: fieldEl.querySelector('input[placeholder="Please specify"]') });
+    sections.push(fieldEl);
   });
-
-  const genderGroup = choiceGroup('gender', GENDERS, state.gender, (v) => (state.gender = v));
-  const farmSizeGroup = choiceGroup('farmSize', FARM_SIZES, state.farmSize, (v) => (state.farmSize = v));
-  const chemicalsGroup = choiceGroup(
-    'usesChemicals',
-    [{ id: 'yes', label: 'Yes' }, { id: 'no', label: 'No' }],
-    null,
-    (v) => (state.usesChemicals = v === 'yes')
-  );
-  const trainingGroup = choiceGroup(
-    'wantsTraining',
-    [{ id: 'yes', label: 'Yes' }, { id: 'no', label: 'No' }],
-    null,
-    (v) => (state.wantsTraining = v === 'yes')
-  );
 
   const saveBtn = el('button', { type: 'submit', class: 'btn btn-green' });
   resetSaveBtnLabel(saveBtn);
@@ -96,11 +126,11 @@ export function renderNewFarmer(root) {
         e.preventDefault();
         const fullName = fullNameInput.value.trim();
         const phone = phoneInput.value.trim();
-        const village = villageInput.value.trim();
-        const district = state.district === 'Other' ? otherDistrictInput.value.trim() : state.district;
+        resolveOtherValues(fieldNodes, state);
 
-        if (!fullName || !phone || !village || !district) {
-          errorBox.textContent = 'Please fill in Full Name, Phone, Village and District before saving.';
+        const missingRequired = activeFields.some((f) => f.required && !hasValue(f, state));
+        if (!fullName || !phone || missingRequired) {
+          errorBox.textContent = 'Please fill in Full Name, Phone, and all required fields before saving.';
           errorBox.hidden = false;
           errorBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
           return;
@@ -136,23 +166,7 @@ export function renderNewFarmer(root) {
           }
 
           saveBtn.textContent = 'Saving…';
-          const frn = await createFarmer({
-            fullName,
-            phone,
-            village,
-            district,
-            dateOfBirth: dobInput.value || null,
-            gender: state.gender,
-            email: emailInput.value.trim(),
-            farmSize: state.farmSize,
-            hivesTraditional: hivesTrad.value,
-            hivesKtb: hivesKtb.value,
-            hivesModern: hivesModern.value,
-            otherCropsOrLivestock: otherCropsInput.value.trim(),
-            avgHarvestKgPerYear: harvestInput.value,
-            usesChemicals: state.usesChemicals,
-            wantsTraining: state.wantsTraining,
-          });
+          const frn = await createFarmer({ fullName, phone, fieldValues: state });
           navigate('#/new-farmer/success/' + frn);
         } catch (err) {
           console.error(err);
@@ -167,29 +181,7 @@ export function renderNewFarmer(root) {
       el('h2', {}, 'Personal Information'),
       el('div', { class: 'field' }, [el('label', {}, 'Full Name *'), fullNameInput]),
       el('div', { class: 'field' }, [el('label', {}, 'Phone Number *'), phoneInput]),
-      el('div', { class: 'field' }, [el('label', {}, 'Date of Birth'), dobInput]),
-      el('div', { class: 'field' }, [el('label', {}, 'Gender'), genderGroup]),
-      el('div', { class: 'field' }, [el('label', {}, 'Email Address'), emailInput]),
-
-      el('h2', {}, 'Farm Information'),
-      el('div', { class: 'field' }, [el('label', {}, 'Village *'), villageInput]),
-      el('div', { class: 'field' }, [el('label', {}, 'District *'), districtSelect, otherDistrictInput]),
-      el('div', { class: 'field' }, [el('label', {}, 'Farm Size'), farmSizeGroup]),
-      el('div', { class: 'field' }, [
-        el('label', {}, 'Number of Beehives'),
-        el('div', { class: 'btn-row' }, [
-          el('div', { class: 'field' }, [el('label', {}, 'Traditional'), hivesTrad]),
-          el('div', { class: 'field' }, [el('label', {}, 'KTB'), hivesKtb]),
-          el('div', { class: 'field' }, [el('label', {}, 'Modern'), hivesModern]),
-        ]),
-      ]),
-      el('div', { class: 'field' }, [el('label', {}, 'Other Crops or Livestock'), otherCropsInput]),
-
-      el('h2', {}, 'Production Details'),
-      el('div', { class: 'field' }, [el('label', {}, 'Average Honey Harvest'), harvestInput]),
-      el('div', { class: 'field' }, [el('label', {}, 'Uses chemicals/pesticides?'), chemicalsGroup]),
-      el('div', { class: 'field' }, [el('label', {}, 'Interested in training?'), trainingGroup]),
-
+      ...sections,
       errorBox,
       saveBtn,
     ]

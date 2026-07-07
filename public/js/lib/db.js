@@ -43,6 +43,19 @@ function looksLikeFrn(value) {
 // only fire it and let it resolve/reject in the background (see
 // trackWrite in sync.js, which also drives the header's sync badge).
 
+// Field ids from the newFarmerFields schema (see referenceData.js) that map
+// onto an existing top-level farmers/{frn} field, exactly as before this
+// form became schema-driven - so Farmer Profile/Card/History (which read
+// these same top-level fields) need no changes. Anything else - a
+// genuinely new field an admin adds later - is preserved under
+// `customFields` instead of being silently dropped, though it isn't yet
+// surfaced anywhere in the UI (see docs/Backlog.md).
+const KNOWN_FIELD_IDS = [
+  'dateOfBirth', 'gender', 'email', 'village', 'district', 'farmSize',
+  'hivesTraditional', 'hivesKtb', 'hivesModern', 'otherCropsOrLivestock',
+  'avgHarvestKgPerYear', 'usesChemicals', 'wantsTraining',
+];
+
 /**
  * Creates a new farmer document. The FRN is minted entirely client-side
  * (device code + a locally-incremented sequence, see device.js) so this
@@ -51,36 +64,47 @@ function looksLikeFrn(value) {
  * correctly and syncs automatically once a connection is available. The
  * write is intentionally not awaited (see trackWrite above) so this
  * resolves instantly, online or off.
+ *
+ * `fieldValues` is a flat { fieldId: rawValue } map straight from the
+ * dynamic New Farmer form (see newFarmer.js and referenceData.js
+ * getNewFarmerFields) - Full Name and Phone are passed separately since
+ * they're fixed, always-required inputs outside that schema.
  */
-export async function createFarmer(farmerInput) {
+export async function createFarmer({ fullName, phone, fieldValues = {}, registeredBy }) {
   const frn = formatFrn();
   const farmerRef = doc(db, 'farmers', frn);
+
+  const customFields = {};
+  for (const [fieldId, value] of Object.entries(fieldValues)) {
+    if (!KNOWN_FIELD_IDS.includes(fieldId)) customFields[fieldId] = value;
+  }
 
   trackWrite(setDoc(farmerRef, {
     schemaVersion: 1,
     frn,
-    fullName: farmerInput.fullName,
-    fullNameLower: farmerInput.fullName.trim().toLowerCase(),
-    dateOfBirth: farmerInput.dateOfBirth || null,
-    gender: farmerInput.gender || null,
-    phone: farmerInput.phone,
-    email: farmerInput.email || null,
-    village: farmerInput.village,
-    district: farmerInput.district,
-    farmSize: farmerInput.farmSize || null,
+    fullName,
+    fullNameLower: fullName.trim().toLowerCase(),
+    phone,
+    dateOfBirth: fieldValues.dateOfBirth || null,
+    gender: fieldValues.gender || null,
+    email: fieldValues.email || null,
+    village: fieldValues.village || '',
+    district: fieldValues.district || '',
+    farmSize: fieldValues.farmSize || null,
     hives: {
-      traditional: Number(farmerInput.hivesTraditional) || 0,
-      ktb: Number(farmerInput.hivesKtb) || 0,
-      modern: Number(farmerInput.hivesModern) || 0,
+      traditional: Number(fieldValues.hivesTraditional) || 0,
+      ktb: Number(fieldValues.hivesKtb) || 0,
+      modern: Number(fieldValues.hivesModern) || 0,
     },
-    otherCropsOrLivestock: farmerInput.otherCropsOrLivestock || '',
-    avgHarvestKgPerYear: Number(farmerInput.avgHarvestKgPerYear) || 0,
-    usesChemicals: !!farmerInput.usesChemicals,
-    wantsTraining: !!farmerInput.wantsTraining,
-    signatureDate: farmerInput.signatureDate || todayIso(),
+    otherCropsOrLivestock: fieldValues.otherCropsOrLivestock || '',
+    avgHarvestKgPerYear: Number(fieldValues.avgHarvestKgPerYear) || 0,
+    usesChemicals: fieldValues.usesChemicals === 'yes',
+    wantsTraining: fieldValues.wantsTraining === 'yes',
+    customFields,
+    signatureDate: todayIso(),
     photoUrl: null,
     status: 'active',
-    registeredBy: farmerInput.registeredBy || currentDisplayName(),
+    registeredBy: registeredBy || currentDisplayName(),
     registeredAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     lifetimeStats: {

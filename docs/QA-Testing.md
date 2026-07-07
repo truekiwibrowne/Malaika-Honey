@@ -30,6 +30,15 @@ Open `http://localhost:5000`. The app auto-detects `localhost` and connects to t
 - [ ] Confirm the success screen shows a newly generated FRN (device-coded format, e.g. `MHA1000042`), and that its sequence portion is one greater than the previous FRN issued from this device in this test run.
 - [ ] From the success screen, confirm all three shortcut actions are present and work: **Buy Produce**, **Farmer Card**, **Done**.
 - [ ] Reopen the app (or **Existing Farmer**) and confirm the new farmer is retrievable by name, FRN, and phone number.
+- [ ] Select "Other" on District, leave the free-text field blank, and confirm Save is still blocked (the generic "Other" handling must resolve before required-validation, not after).
+- [ ] Select "Other" on District, fill in the free-text field, and confirm the typed value (not the literal word "Other") is what's saved on the farmer record.
+
+### 1b. Admin-editable reference data (products, grades, payment methods, farm sizes, districts, New Farmer fields)
+- [ ] Against the **local emulator only**, add a 4th `grades` document (e.g. `D`) alongside existing seeded `A`/`B`/`C` — reload Buy Produce and confirm all four appear.
+- [ ] Add a `newFarmerFields` document deactivating an existing field (`active: false`) and confirm it disappears from New Farmer without affecting any already-registered farmer's data.
+- [ ] Add a brand-new `newFarmerFields` document (a field id with no existing top-level farmer slot) and confirm it renders on the form, saves under `customFields` on the new farmer record, and doesn't break farmers registered before that field existed.
+- [ ] Confirm New Farmer and Buy Produce still render with today's exact defaults when a reference collection is completely empty (the fallback path) — this is the state a fresh production deploy starts in.
+- [ ] Confirm the New Farmer form still works fully offline (`disableNetwork`) once its reference collections have been fetched at least once (served from Firestore's local cache, no fallback needed).
 
 ### 2. Existing Farmer
 - [ ] From Home, tap **Existing Farmer**.
@@ -97,6 +106,7 @@ Keep an eye on these known-tricky areas whenever touching related code:
 - Any code that awaits a Firestore write directly instead of firing it via `trackWrite()` — this will hang indefinitely offline (see [[System-Architecture]] "Offline behavior in detail").
 - Any code that uses `getDoc` where an offline-safe `getDocFromCache` lookup is required (Buy Produce farmer lookups in particular).
 - Currency/number formatting (`UGX`, no decimals) staying consistent across Buy Produce, Profile, and History screens.
+- Any edit to a reference-data collection (`products`, `grades`, `paymentMethods`, `farmSizes`, `districts`, `newFarmerFields`) — test against the emulator first; these collections are all-or-nothing per collection once non-empty (see [[Risk-Register]] R20), and a bad `newFarmerFields` edit can break the whole New Farmer form (R19).
 
 ## Bug reporting
 

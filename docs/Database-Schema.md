@@ -28,7 +28,7 @@ One document per registered farmer. Document ID = FRN.
 | `phone` | string | Primary contact, used for search and must be unique (see below) |
 | `email` | string or null | Optional |
 | `village` | string | Required |
-| `district` | string | Required, dropdown-driven (Uganda district list) |
+| `district` | string | Required, dropdown-driven from the `districts` collection (see "Admin-editable reference data" below) |
 | `farmSize` | string enum: `small` (1–5 acres), `medium` (6–15), `large` (16+) | |
 | `hives.traditional` | number | Count |
 | `hives.ktb` | number | Kenya Top Bar hives count |
@@ -46,6 +46,7 @@ One document per registered farmer. Document ID = FRN.
 | `lifetimeStats.totalKg` | number | Denormalized running total per product-agnostic weight, updated via a Firestore `increment()` FieldValue whenever a purchase is saved against a known farmer — avoids summing the whole `purchases` collection on every profile view |
 | `lifetimeStats.totalPaidUgx` | number | Denormalized running total paid |
 | `lifetimeStats.lastPurchaseAt` | timestamp or null | Denormalized, drives "Last Delivery" on the profile screen |
+| `customFields` | map | Values for any New Farmer form field an admin has added that isn't one of the known top-level fields above (see "New Farmer form schema" below). `{}` for every farmer registered before a given custom field existed |
 
 **Why denormalize `lifetimeStats`:** the Farmer Profile screen must render instantly and offline. Recomputing totals from the `purchases` collection on every screen load doesn't scale and doesn't work well offline.
 
@@ -98,11 +99,39 @@ The `devices` collection itself is a best-effort, self-check side record, not lo
 
 **Old-format FRNs are untouched:** farmers already registered under the original shared-counter format (`MH000001`, `MH000002`, ...) keep that FRN forever — there is no migration. Both formats are permanent, opaque, unique strings and every lookup (`getFarmerByFrn`, `searchFarmers`, etc.) treats them identically.
 
-### `products`, `grades`, `paymentMethods` (reference collections, optional/future)
+### Admin-editable reference data
 
-The product list (Honey, Bee Wax, Pollen, Propolis, Bee Venom), grade list (A/B/C), and payment method list (Cash, Mobile Money, Bank) are all hardcoded in `public/js/lib/constants.js` for the MVP, because these lists rarely change and hardcoding keeps the app usable fully offline on first install with zero reads.
+`products/{id}`, `grades/{id}`, `paymentMethods/{id}`, `farmSizes/{id}`, `districts/{id}`, and `newFarmerFields/{id}` are all real Firestore collections the field app reads from (via `public/js/lib/referenceData.js`), rather than hardcoded lists — an admin can add, edit, or deactivate entries directly today (Firebase Console's Firestore Data tab), ahead of the future admin app owning this UI. Every collection is small (a few dozen documents at most), so the app fetches each one whole and filters/sorts client-side rather than via a Firestore query — no composite indexes needed. `purchases.product`/`purchases.grade`/`purchases.paymentMethod` remain **plain strings**, not restricted enums, so new values read/write without any migration.
 
-This is deliberately not a schema limitation: `purchases.product`, `purchases.grade`, and `purchases.paymentMethod` are stored as **plain strings**, not restricted enums, so admin-added values (e.g. a new product, a 4th grade, a new mobile-money provider) can be written and read without any migration the moment the admin app exists. The only piece that needs to change when the list changes is the field app's UI options — today that means a code change to `constants.js`; if the admin app needs to add these without waiting for a field-app redeploy, promote each list to its own small Firestore collection (e.g. `products/{productId}`, `grades/{gradeId}`, `paymentMethods/{methodId}`) and have the field app read from there (falling back to the hardcoded list if offline on first run). The app already reads all three lists from one JS module, so that swap is localized and doesn't touch `purchases`/`farmers` documents at all.
+**Important:** each collection ships with a hardcoded fallback array (today's exact values) in `referenceData.js`, used only when the *live* fetch returns empty — this keeps the app fully usable offline on a fresh install with zero prior sync. Once an admin adds even one document to a previously-empty collection, the fallback stops applying entirely for that collection (it's an all-or-nothing swap, not a merge) — so seeding a collection for the first time should include every value meant to survive, not just the one being added.
+
+- `products/{id}`, `grades/{id}`, `paymentMethods/{id}`, `farmSizes/{id}` — each `{ label, order, active }`.
+- `districts/{id}` — `{ name, country, order, active }`. `country` is a code like `'UG'` (see "Country" below); districts with no `country` field are treated as visible everywhere.
+- `newFarmerFields/{id}` — the New Farmer form's schema (see "New Farmer form schema" below).
+
+#### New Farmer form schema
+
+Full Name and Phone are **not** part of this collection — they're fixed, always-required inputs in `newFarmer.js` itself, since duplicate-checking (`findFarmerByPhone`) and name search both depend on them existing on every farmer. Every other field on the form (Date of Birth, Gender, Village, District, Farm Size, Hives, Other Crops, Harvest, Chemicals, Training, and anything an admin adds later) is driven by `newFarmerFields/{fieldId}`:
+
+| Field | Type | Notes |
+|---|---|---|
+| `section` | string | Groups fields under a heading (`'Personal Information'`, `'Farm Information'`, `'Production Details'`, or any admin-added section name) |
+| `label` | string | Displayed with a trailing ` *` automatically when `required` is true |
+| `type` | string enum: `text`, `tel`, `email`, `date`, `number`, `select`, `choice`, `toggle` | `select`/`choice` render options from either `options` (inline) or `optionsSource`; `toggle` is a fixed Yes/No choice |
+| `order` | number | Sort key within the whole form (not just within a section) — can be a decimal (e.g. `10.5`) to slot a new field between two existing ones without renumbering everything else |
+| `required` | boolean | Enforced generically at submit time, not per-field-hardcoded |
+| `active` | boolean | `false` soft-removes the field from the form without touching any farmer document that already has data under that field id |
+| `options` | array of `{id, label}` | Inline option list, for a field whose choices aren't reused anywhere else (e.g. Gender) |
+| `optionsSource` | string or absent | Name of another reference collection to pull options from instead (`'districts'`, `'farmSizes'`) — used when the same option list is also relevant elsewhere |
+| `placeholder` | string or absent | Shown in the empty input/select |
+
+An option literally valued `"Other"` on any `select`/`choice` field automatically reveals a secondary free-text input at render time, generalizing what used to be District-only special-casing (see `newFarmer.js` `renderField`/`resolveOtherValues`).
+
+**Known field ids** (`dateOfBirth`, `gender`, `email`, `village`, `district`, `farmSize`, `hivesTraditional`, `hivesKtb`, `hivesModern`, `otherCropsOrLivestock`, `avgHarvestKgPerYear`, `usesChemicals`, `wantsTraining`) save into their existing top-level `farmers/{frn}` field, exactly as before this form became schema-driven — Farmer Profile/Card/History need no changes since they read those same top-level fields. Any **other** field id (something an admin adds later that isn't one of the above) is preserved under a new `farmers/{frn}.customFields` map instead of being dropped — though it isn't yet surfaced anywhere else in the UI (Profile, Card, etc.); that's tracked separately in [[Backlog]].
+
+#### Country
+
+`public/js/lib/country.js`'s `getCountryCode()` is the single seam for "which country is this device in," used to filter `districts`. Today it's just a per-device default (`'UG'`) cached in `localStorage` — there's no in-app country picker yet, since Malaika Honey only operates in Uganda today. Automatic detection (e.g. IP/ISP-based) can be added later entirely inside that one function without touching any caller; it can only ever be a best-effort *online* refinement, though, since a device that's never been online still needs a usable default.
 
 ## Future M&E-driven additions (not built yet — see [[Backlog]])
 
