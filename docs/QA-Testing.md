@@ -9,26 +9,30 @@ There is no automated test suite for v1 (a deliberate scope decision — see [[B
 # in a second terminal, serve the app (or use the Firebase Hosting emulator's own port)
 npx serve public -l 5000
 ```
-Open `http://localhost:5000`. The app auto-detects `localhost` and connects to the Firestore **and Auth** emulators instead of production (see `public/js/lib/firebase.js` and [[Config-Management]]) — so testing never touches real farmer data or real staff accounts. Tapping **Sign in with Google** against the Auth emulator shows a fake account-picker form (no real Google account needed) — after signing in, add that email to the Firestore emulator's `allowedStaff` collection to grant test access (Emulator UI's Firestore tab, or the Admin SDK) — see [[Config-Management]] "Staff account provisioning."
+Open `http://localhost:5000`. The app auto-detects `localhost` and connects to the Firestore **and Auth** emulators instead of production (see `public/js/lib/firebase.js` and [[Config-Management]]) — so testing never touches real farmer data or real staff accounts. Tapping **Create Account** and entering a phone number + password against the Auth emulator works exactly as in production (no real phone/SMS involved — see [[Database-Schema]] "Staff accounts") — after creating the account, add its synthetic email (`{digits}@staff.malaikahoney.local`) to the Firestore emulator's `allowedStaff` collection to grant test access (Emulator UI's Firestore tab, or the Admin SDK) — see [[Config-Management]] "Staff account provisioning." Google Sign-In is hidden by default (`GOOGLE_SIGNIN_ENABLED` in `public/js/lib/constants.js`) — flip it to `true` locally if you specifically need to test that path.
 
 ## Golden-path checklist (run before every release)
 
 ### 0. Login, authorization, and first-run tutorial
-- [ ] Sign in with a Google account **not** on the `allowedStaff` allowlist and confirm it lands on "Approval Needed" (showing that account's email), not Home or any farmer data screen.
+- [ ] Tap **Create Account**, enter a name/phone/password not on the `allowedStaff` allowlist, and confirm it lands on "Approval Needed" (showing that account's **phone number**, not a raw synthetic email), not Home or any farmer data screen.
 - [ ] From "Approval Needed", try navigating directly to `#/home` (or any other route) via the address bar/hash and confirm it bounces back to `#/not-authorized` rather than granting access.
-- [ ] Add that email to `allowedStaff` (Firestore Console or emulator), tap **Check Again**, and confirm it now lands on Home (or the tutorial, if this account hasn't seen it — see below).
-- [ ] Sign in with a Google account already on the allowlist and confirm it lands on Home (or Tutorial) directly, with no approval-needed detour.
+- [ ] Add that account's synthetic email to `allowedStaff` (Firestore Console or emulator), tap **Check Again**, and confirm it now lands on Home (or the tutorial, if this account hasn't seen it — see below).
+- [ ] Sign out, then **Sign In** with the same phone + password and confirm it lands on Home (or Tutorial) directly, with no approval-needed detour.
+- [ ] Try **Sign In** with the wrong password and confirm a clear "Incorrect phone number or password" error, not a crash or a silent no-op.
+- [ ] Try **Create Account** again with a phone number that already has an account and confirm a clear "account already exists — use Sign In instead" error.
 - [ ] For an account that hasn't seen the tutorial yet, confirm sign-in routes to the 4-slide tutorial instead of straight to Home, and that **Skip** and **Get Started** (final slide) both land on Home and mark the tutorial seen (won't show again for that account on that device).
 - [ ] Confirm reloading the app while already signed in and approved goes straight to Home (no login flash, no repeated tutorial, no repeated approval check hitting the network).
 - [ ] Confirm reloading the app **offline** while already signed in and previously approved still reaches Home (authorization must be cached locally, not re-checked live every load).
 - [ ] Sign out (**Sign Out** button at the bottom of Home) and confirm it returns to Login and blocks access to other routes until signed back in.
+- [ ] After signing out, confirm the login screen does **not** auto-sign back in as the previous user, and that a **different** phone number can immediately create/sign into its own account on the same browser/device.
+- [ ] Confirm the Google Sign-In button is **not** visible on Login by default (`GOOGLE_SIGNIN_ENABLED` is `false`); if testing that path specifically, flip the flag locally and confirm the button reappears and still works.
 
 ### 0b. Admin approvals
 - [ ] Sign in with a non-admin `allowedStaff` account and confirm **no** "Approve Requests" button appears on Home.
 - [ ] Add `role: 'admin'` to that account's `allowedStaff` document (Console or emulator), reload, and confirm the button now appears — with a `(N)` count matching the number of `pending` `signupRequests`.
-- [ ] Sign in with a brand-new Google account (not on the allowlist) to generate a `signupRequests` entry, then as the admin, open **Approve Requests** and confirm that request appears with the correct name/email/date.
-- [ ] Tap **Approve** and confirm: the request disappears from the list, an `allowedStaff` document now exists for that email, and the `signupRequests` document is updated to `status: 'approved'` with `resolvedAt`/`resolvedBy` set.
-- [ ] Confirm the newly-approved account can now sign in and reach Home directly (no more "Approval Needed").
+- [ ] Create a brand-new phone+password account (not on the allowlist) to generate a `signupRequests` entry, then as the admin, open **Approve Requests** and confirm that request appears with the correct name, **Phone** (not a raw synthetic email), and date.
+- [ ] Tap **Approve** and confirm: the request disappears from the list, an `allowedStaff` document now exists for that account's synthetic email, and the `signupRequests` document is updated to `status: 'approved'` with `resolvedAt`/`resolvedBy` set.
+- [ ] Confirm the newly-approved account can now sign in (phone + the password it was created with) and reach Home directly (no more "Approval Needed").
 - [ ] Generate a second `signupRequests` entry and tap **Reject** — confirm it disappears from the list, **no** `allowedStaff` document is created, and the request is updated to `status: 'rejected'`.
 - [ ] Confirm that rejected account signing in again generates a **fresh pending request** (rejection isn't permanent) rather than being silently blocked with no path forward.
 - [ ] As a non-admin approved account, confirm direct navigation to `#/admin/approvals` does not expose other staff's pending requests (Firestore rules should deny the `list` read — the screen should show an error/empty state, not real data).
@@ -90,6 +94,7 @@ Open `http://localhost:5000`. The app auto-detects `localhost` and connects to t
 - [ ] From Home while still offline, use **Buy Produce** to record a purchase against an FRN never seen on this device — confirm it saves with the "not found on this device" notice instead of blocking.
 - [ ] Re-enable network connectivity and confirm the badge moves from Not Synced to **Synced**.
 - [ ] Confirm the farmer, the matched purchase, and the unverified purchase all appear in the Firestore emulator/console shortly after reconnecting, with no duplicate FRNs and no errors in the browser console.
+- [ ] With a farmer/reference-data already cached from an earlier online visit, go offline and confirm Farmer Profile, History, Buy Produce (product/grade/payment chips), and Existing Farmer search all render within about a second — not a multi-second stall before showing cached data. (Every read path is guarded with `navigator.onLine ? liveRead() : cacheRead()` specifically so offline reads never wait on a live round-trip first — see [[System-Architecture]] "Offline behavior in detail".)
 
 ### 7. Reconciling unverified purchases
 - [ ] From Home, after at least one unverified purchase exists (see above), confirm the "N purchases need a farmer match" banner appears with the correct count.
@@ -102,8 +107,14 @@ Open `http://localhost:5000`. The app auto-detects `localhost` and connects to t
 - [ ] Confirm every other authenticated screen shows back/home icons + the sync badge, with **no** logo and no sign-out control at all.
 - [ ] Confirm the back icon returns to a sensible previous screen (not always Home) — e.g. from Farmer Card it should return to that farmer's Profile, from History likewise.
 - [ ] Confirm Login shows only the bare logo (no sync badge, no icons).
+- [ ] With the device/browser set to dark mode, confirm the header logo does **not** show a mismatched white box around it — the whole app stays consistently light (there is no separate dark theme; `<meta name="color-scheme" content="light">` in `index.html` tells the browser not to auto-invert the light-only design).
 
-### 9. Device/browser checks
+### 9. Screen layout (top-anchored vs. centered)
+- [ ] Confirm Existing Farmer, Buy Produce's standalone FRN-search entry screen, Farmer Profile, History, Farmer Card, Reconcile (once purchases are listed), and Approve Requests (once requests are listed) all start at the **top** of the screen, not vertically centered.
+- [ ] Confirm New Farmer registration and Buy Produce's purchase form (the actual product/weight/price form) also start at the top.
+- [ ] Confirm one-time acknowledgment screens — New Farmer success, Buy Produce success, Reconcile's "nothing to fix" empty state, Approve Requests' "no pending requests" empty state, Login, Not Authorized, Tutorial — remain vertically **centered**.
+
+### 10. Device/browser checks
 - [ ] Test on an actual Android phone (or Chrome DevTools device emulation at minimum) at a small screen size (~360×640) — confirm each screen fits without scrolling per the design rules in [[System-Architecture]].
 - [ ] Confirm buttons are large enough to tap accurately one-handed.
 - [ ] Confirm text is legible at default phone zoom without squinting.

@@ -219,13 +219,11 @@ export function renderBuyProduceEntry(root) {
 
   mount(
     root,
-    el('div', { class: 'centered-screen' }, [
-      el('h1', {}, 'Buy Produce'),
-      el('p', { class: 'welcome' }, 'Enter the farmer’s FRN, name or phone.'),
-      el('div', { class: 'field' }, [frnInput]),
-      continueBtn,
-      resultsBox,
-    ])
+    el('h1', {}, 'Buy Produce'),
+    el('p', { class: 'welcome' }, 'Enter the farmer’s FRN, name or phone.'),
+    el('div', { class: 'field' }, [frnInput]),
+    continueBtn,
+    resultsBox
   );
 
   frnInput.focus();

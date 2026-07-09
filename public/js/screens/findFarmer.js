@@ -51,12 +51,10 @@ export function renderFindFarmer(root) {
 
   mount(
     root,
-    el('div', { class: 'centered-screen' }, [
-      el('h1', {}, 'Existing Farmer'),
-      el('p', { class: 'welcome' }, 'Find a farmer profile.'),
-      el('div', { class: 'field' }, [searchInput]),
-      resultsBox,
-    ])
+    el('h1', {}, 'Existing Farmer'),
+    el('p', { class: 'welcome' }, 'Find a farmer profile.'),
+    el('div', { class: 'field' }, [searchInput]),
+    resultsBox
   );
 
   searchInput.focus();

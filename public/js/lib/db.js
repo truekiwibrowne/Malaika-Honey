@@ -11,6 +11,7 @@ import {
   orderBy,
   limit,
   getDocs,
+  getDocsFromCache,
   serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { db } from './firebase.js';
@@ -32,6 +33,22 @@ function formatFrn() {
 // docs/Database-Schema.md "devices/{deviceCode}").
 function looksLikeFrn(value) {
   return /^mh[a-z0-9]+$/i.test(value.trim());
+}
+
+/**
+ * A plain getDocs(query) still tries the server first even when offline,
+ * only falling back to cache after a real connectivity timeout (several
+ * seconds) - on a cold app start with no signal, that makes duplicate-
+ * phone/name checks and history/reconcile lookups feel like the app is
+ * stuck instead of just using what's already cached. Every query-based
+ * read in this file goes through this helper instead of calling getDocs
+ * directly, so it resolves quickly offline regardless of whether this
+ * exact query has run before (an empty/never-cached result is the same
+ * "nothing found here yet" outcome a query that genuinely has no matches
+ * would give).
+ */
+async function getDocsOfflineSafe(q) {
+  return navigator.onLine ? getDocs(q) : getDocsFromCache(q);
 }
 
 // IMPORTANT: setDoc/updateDoc promises only resolve once the write is
@@ -117,8 +134,18 @@ export async function createFarmer({ fullName, phone, fieldValues = {}, register
   return frn;
 }
 
+/**
+ * Prefers a live read (freshest data) when online, but reads from cache
+ * only when offline - a plain getDoc still tries the server first even
+ * offline and can take several seconds to time out and fall back, which
+ * makes Farmer Profile/History feel stuck even for a farmer that's
+ * already cached from a previous visit. See getFarmerByFrnFromCache for
+ * a lookup that's cache-only unconditionally (used where a live attempt
+ * must never be made at all, e.g. Buy Produce).
+ */
 export async function getFarmerByFrn(frn) {
   const ref = doc(db, 'farmers', frn.trim().toUpperCase());
+  if (!navigator.onLine) return getFarmerFromCache(frn);
   const snap = await getDoc(ref);
   return snap.exists() ? snap.data() : null;
 }
@@ -156,7 +183,7 @@ async function getFarmerFromCache(frn) {
  */
 export async function findFarmerByPhone(phone) {
   const q = query(collection(db, 'farmers'), where('phone', '==', phone.trim()), limit(1));
-  const snap = await getDocs(q);
+  const snap = await getDocsOfflineSafe(q);
   return snap.empty ? null : snap.docs[0].data();
 }
 
@@ -168,7 +195,7 @@ export async function findFarmerByPhone(phone) {
 export async function findFarmerByName(fullName) {
   const lower = fullName.trim().toLowerCase();
   const q = query(collection(db, 'farmers'), where('fullNameLower', '==', lower), limit(1));
-  const snap = await getDocs(q);
+  const snap = await getDocsOfflineSafe(q);
   return snap.empty ? null : snap.docs[0].data();
 }
 
@@ -194,7 +221,7 @@ export async function searchFarmers(rawQuery) {
   const results = new Map();
 
   const phoneQuery = query(collection(db, 'farmers'), where('phone', '==', q), limit(10));
-  const phoneSnap = await getDocs(phoneQuery);
+  const phoneSnap = await getDocsOfflineSafe(phoneQuery);
   phoneSnap.forEach((d) => results.set(d.id, d.data()));
 
   const lower = q.toLowerCase();
@@ -208,7 +235,7 @@ export async function searchFarmers(rawQuery) {
     where('fullNameLower', '<=', lower + String.fromCharCode(0xf8ff)),
     limit(15)
   );
-  const nameSnap = await getDocs(nameQuery);
+  const nameSnap = await getDocsOfflineSafe(nameQuery);
   nameSnap.forEach((d) => results.set(d.id, d.data()));
 
   return Array.from(results.values());
@@ -312,7 +339,7 @@ export async function getUnverifiedPurchases() {
     orderBy('createdAt', 'desc'),
     limit(50)
   );
-  const snap = await getDocs(q);
+  const snap = await getDocsOfflineSafe(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
@@ -323,6 +350,6 @@ export async function getPurchaseHistory(frn) {
     orderBy('purchaseDate', 'desc'),
     limit(50)
   );
-  const snap = await getDocs(q);
+  const snap = await getDocsOfflineSafe(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }

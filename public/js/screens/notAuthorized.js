@@ -1,11 +1,11 @@
 import { el, mount } from '../lib/ui.js';
 import { navigate } from '../router.js';
-import { getCurrentUser, refreshAuthorization, signOutStaff, hasSeenTutorial } from '../lib/auth.js';
+import { getCurrentUser, refreshAuthorization, signOutStaff, hasSeenTutorial, identityLabel } from '../lib/auth.js';
 import { iconEl } from '../lib/icons.js';
 
 export function renderNotAuthorized(root) {
   const user = getCurrentUser();
-  const email = user ? user.email : 'your account';
+  const email = identityLabel(user);
 
   const statusBox = el('p', { class: 'hint' });
 

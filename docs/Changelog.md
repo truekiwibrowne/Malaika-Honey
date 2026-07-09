@@ -6,6 +6,23 @@ All notable changes to this project are documented here. Format loosely follows 
 
 Nothing yet.
 
+## [0.5.1] - 2026-07-09
+
+Phone number + password as the primary sign-in method (Google Sign-In hidden but retained), a systemic offline-read performance fix, screen-layout corrections based on real-device feedback, and a dark-mode logo fix.
+
+### Added
+- **Phone + password sign-in**: `createAccountWithPhone`/`signInWithPhone` (`public/js/lib/auth.js`) let staff without a Google account create their own account (name, phone, self-chosen password) and sign back in later — under the hood this uses Firebase Auth's email/password provider against a synthetic email derived from the phone number (`phoneToEmail()`), so no real email address is required. Feeds into the exact same `allowedStaff`/`signupRequests`/admin-approval pipeline as Google Sign-In (added in 0.4.0) — no separate approval mechanism was needed.
+- **`login.js` rewrite**: explicit **Sign In** / **Create Account** toggle (Create Account also collects a name) — deliberately two separate actions rather than one auto-detecting flow, since modern Firebase Auth returns the same generic error for "wrong password" and "no such account" to prevent account enumeration.
+- **`GOOGLE_SIGNIN_ENABLED`** flag (`public/js/lib/constants.js`, currently `false`): Google Sign-In is fully retained in the codebase but hidden from the login screen, restorable by flipping one flag.
+- **`identityLabel()`/`phoneFromSyntheticEmail()`** (`auth.js`): show a phone-account user's actual phone number rather than its internal synthetic email address on the "Approval Needed" screen and the Approve Requests list.
+- **`<meta name="color-scheme" content="light">`** in `index.html`: the app has no separate dark theme, so this tells browsers not to auto-invert/force-dark the page — fixes the header logo (an opaque PNG with a baked-in white background) showing as a mismatched white box when the device is in dark mode.
+
+### Fixed
+- **Offline reads no longer feel stuck.** Plain `getDoc`/`getDocs` calls always attempt a live server round-trip first regardless of actual connectivity, only falling back to the local cache after a real multi-second timeout — this made screens feel broken offline even when the needed data was already cached, especially with several such reads on one page. Every read that can run offline is now guarded with `navigator.onLine ? liveRead() : cacheRead()`: `db.js` (`getFarmerByFrn`, `findFarmerByPhone`, `findFarmerByName`, `searchFarmers`, `getUnverifiedPurchases`, `getPurchaseHistory`), `referenceData.js` (`getOptionList`), `auth.js` (`refreshAuthorization`), `home.js` and `adminApprovals.js` (pending-request counts/lists).
+- **Screen centering reverted on list/lookup screens.** Existing Farmer search, Buy Produce's standalone FRN-search entry screen, Farmer Profile, History, and Farmer Card were vertically centered in 0.2.5 based on feedback at the time; further feedback clarified these should start at the top like the registration/purchase forms — reverted to top-anchored. Reconcile and Approve Requests' populated-list views were reverted the same way for consistency; their "nothing pending" empty states (one-time acknowledgments, like the success screens) remain centered.
+- Buy Produce's empty-search message already correctly said "continue with the FRN above" (fixed in 0.2.5) — reconfirmed while touching this screen.
+- Signing out now reliably returns to a phone+password Login screen with no auto-re-authentication as the previous user — this was a real risk with the (now-hidden) Google flow, where a browser remembering the last Google account could silently re-sign-in the same person without a picker; phone+password sign-in always requires re-typing the password, so a different staff member can sign in on the same shared device.
+
 ## [0.4.0] - 2026-07-09
 
 In-app admin approval flow, replacing the Firebase Console-only staff approval step for day-to-day use.

@@ -1,4 +1,10 @@
-export const APP_VERSION = '0.4.0';
+export const APP_VERSION = '0.5.1';
+
+// Phone + password is the primary sign-in method for now since some staff
+// don't have a Google account; Google Sign-In is kept working in the
+// codebase (not deleted) but hidden from the login screen, in case it's
+// wanted again later - flip this back to true to restore it.
+export const GOOGLE_SIGNIN_ENABLED = false;
 
 export const PRODUCTS = [
   { id: 'honey', label: 'Honey' },

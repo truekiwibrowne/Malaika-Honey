@@ -97,22 +97,20 @@ export async function renderCard(root, { frn }) {
 
   mount(
     root,
-    el('div', { class: 'centered-screen' }, [
-      el('h1', {}, 'Farmer Card'),
-      el('p', { class: 'welcome' }, 'Printable ID card for ' + farmer.fullName + '.'),
-      el('div', { class: 'id-card' }, [
-        el('div', { class: 'id-card-brand' }, [
-          el('img', { class: 'id-card-logo', src: 'assets/logo/icon-square.png', alt: '' }),
-          el('span', {}, 'MALAIKA HONEY'),
-        ]),
-        el('div', { class: 'id-card-frn' }, 'FRN ' + farmer.frn),
-        el('div', { style: 'font-size:20px;font-weight:700' }, farmer.fullName),
-        el('div', { class: 'id-card-row' }, [el('span', { class: 'k' }, 'Village'), el('span', {}, farmer.village)]),
-        el('div', { class: 'id-card-row' }, [el('span', { class: 'k' }, 'District'), el('span', {}, farmer.district)]),
-        el('div', { class: 'id-card-row' }, [el('span', { class: 'k' }, 'Phone'), el('span', {}, farmer.phone)]),
+    el('h1', {}, 'Farmer Card'),
+    el('p', { class: 'welcome' }, 'Printable ID card for ' + farmer.fullName + '.'),
+    el('div', { class: 'id-card' }, [
+      el('div', { class: 'id-card-brand' }, [
+        el('img', { class: 'id-card-logo', src: 'assets/logo/icon-square.png', alt: '' }),
+        el('span', {}, 'MALAIKA HONEY'),
       ]),
-      el('p', { class: 'hint' }, 'Give this card to the farmer to bring on future visits — it speeds up finding their record at the buying centre.'),
-      downloadBtn,
-    ])
+      el('div', { class: 'id-card-frn' }, 'FRN ' + farmer.frn),
+      el('div', { style: 'font-size:20px;font-weight:700' }, farmer.fullName),
+      el('div', { class: 'id-card-row' }, [el('span', { class: 'k' }, 'Village'), el('span', {}, farmer.village)]),
+      el('div', { class: 'id-card-row' }, [el('span', { class: 'k' }, 'District'), el('span', {}, farmer.district)]),
+      el('div', { class: 'id-card-row' }, [el('span', { class: 'k' }, 'Phone'), el('span', {}, farmer.phone)]),
+    ]),
+    el('p', { class: 'hint' }, 'Give this card to the farmer to bring on future visits — it speeds up finding their record at the buying centre.'),
+    downloadBtn
   );
 }

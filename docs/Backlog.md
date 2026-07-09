@@ -24,7 +24,7 @@ This backlog is a living document — update it as priorities shift. See [[Chang
 
 | # | Item | Notes |
 |---|---|---|
-| 2.1 | ~~Staff login (per staff member)~~ | ✅ Done — Google Sign-In with an admin-approved `allowedStaff` allowlist gating real access (see [[Database-Schema]] "Staff accounts" and [[Config-Management]] "Staff account provisioning"). Replaced an earlier username/password design that turned out to be fragile — accounts created in Firebase Console with real emails didn't match the app's synthetic-email login convention |
+| 2.1 | ~~Staff login (per staff member)~~ | ✅ Done — phone number + self-chosen password is the primary sign-in method (since not everyone has a Google account), with an admin-approved `allowedStaff` allowlist gating real access (see [[Database-Schema]] "Staff accounts" and [[Config-Management]] "Staff account provisioning"). Google Sign-In is still fully implemented but hidden behind `GOOGLE_SIGNIN_ENABLED` (`public/js/lib/constants.js`), restorable without a rewrite. Replaced an earlier username/password design that turned out to be fragile — accounts created in Firebase Console with real emails didn't match the app's synthetic-email login convention; the current design avoids that by making account creation self-service from within the app |
 | 2.2 | ~~Firestore Security Rules locked down to authenticated staff only~~ | ✅ Done — every `farmers`/`purchases`/`devices` rule requires `request.auth != null` (see [[Risk-Register]] R1) |
 | 2.3 | Multi-centre support (`centre` field already reserved in schema) | So HQ can see which buying centre recorded what |
 | 2.4 | ~~Duplicate-farmer detection (same phone/name registered twice)~~ | ✅ Done in 0.2.0 — phone blocks, name warns via confirm dialog (application-level check, not a DB constraint — see [[Database-Schema]] and Risk R13) |
@@ -42,6 +42,7 @@ This backlog is a living document — update it as priorities shift. See [[Chang
 | 2.16 | In-app UI for managing reference data collections (2.14) and the New Farmer form schema | Currently a manual Firestore Console step (see [[Config-Management]]); natural fit for the admin app (Milestone 3) |
 | 2.17 | Automatic country detection (IP/ISP-based) for `districts` filtering, if Malaika expands beyond Uganda | `public/js/lib/country.js` `getCountryCode()` is the single seam for this — currently a per-device hardcoded default (`'UG'`); can only ever be a best-effort *online* refinement given the offline-first requirement |
 | 2.18 | In-app UI for revoking a staff member's access or changing their role | Currently Console-only, by design (see [[Database-Schema]] "Staff accounts") — worth reconsidering once there's a real need for an admin to act quickly without Console access |
+| 2.19 | In-app "forgot password" flow for phone+password accounts | Currently Console-only (an admin resets it directly in Firebase Console's Authentication tab) — see [[Admin-User-Manual]] FAQ |
 
 ## Milestone 3 — Admin / Management App
 

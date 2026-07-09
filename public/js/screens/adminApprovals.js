@@ -1,6 +1,7 @@
 import {
   collection,
   getDocs,
+  getDocsFromCache,
   doc,
   setDoc,
   updateDoc,
@@ -9,7 +10,7 @@ import {
 import { db } from '../lib/firebase.js';
 import { el, mount, toast } from '../lib/ui.js';
 import { formatDate } from '../lib/constants.js';
-import { currentDisplayName } from '../lib/auth.js';
+import { currentDisplayName, phoneFromSyntheticEmail } from '../lib/auth.js';
 import { iconEl } from '../lib/icons.js';
 
 /**
@@ -20,7 +21,8 @@ import { iconEl } from '../lib/icons.js';
  * pattern as referenceData.js, since this collection is always small.
  */
 async function getPendingRequests() {
-  const snap = await getDocs(collection(db, 'signupRequests'));
+  const ref = collection(db, 'signupRequests');
+  const snap = await (navigator.onLine ? getDocs(ref) : getDocsFromCache(ref));
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
     .filter((r) => r.status === 'pending')
@@ -85,8 +87,8 @@ function renderRequestRow(request, onResolved) {
       el('span', {}, request.displayName),
     ]),
     el('div', { class: 'history-item', style: 'border:none;background:none;padding:4px 0' }, [
-      el('span', { class: 'sub' }, 'Email'),
-      el('span', {}, request.email),
+      el('span', { class: 'sub' }, phoneFromSyntheticEmail(request.email) ? 'Phone' : 'Email'),
+      el('span', {}, phoneFromSyntheticEmail(request.email) || request.email),
     ]),
     el('div', { class: 'history-item', style: 'border:none;background:none;padding:4px 0' }, [
       el('span', { class: 'sub' }, 'Requested'),

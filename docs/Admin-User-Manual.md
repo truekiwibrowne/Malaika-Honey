@@ -5,25 +5,26 @@ This guide is for buying-centre staff using the Malaika Honey app on a phone. It
 ## Getting started
 
 1. Open the app link in your phone's browser (Chrome recommended).
-2. **Sign in with your Google account** (see "Logging in" below). The first time you sign in, you'll see a short tutorial — you can skip it any time.
+2. **Create an account with your phone number and a password** (see "Logging in" below). The first time you sign in, you'll see a short tutorial — you can skip it any time.
 3. On the Home screen you'll see three big buttons: **Existing Farmer**, **New Farmer**, **Buy Produce**.
 4. The app works even with a weak or no signal. If you have no signal, keep using the app normally — it will send your work to the office database automatically once your phone reconnects to the internet. Try to reconnect to the internet (Wi-Fi or data) at least once before the end of your day so your work reaches the office. Watch the badge at the top of the screen (see "What the sync badge means" below) to know whether your work has actually reached the office yet.
 
 ## Logging in
 
-The app requires you to sign in with your own Google account before you can use it, so the office can tell who registered which farmer or recorded which purchase.
+The app requires you to sign in with your own phone number and a password before you can use it, so the office can tell who registered which farmer or recorded which purchase.
 
-1. Tap **Sign in with Google** and choose your Google account.
-2. **The first time**, you'll land on an "Approval Needed" screen showing your email — this is expected. Tell your admin that email address so they can approve it (see [[Config-Management]] "Staff account provisioning"). Once approved, tap **Check Again** on that screen (or just reopen the app).
-3. **You must sign in at least once while you have internet.** After that first successful sign-in, you can keep using the app fully offline — you won't be asked to sign in again on that phone unless you deliberately sign out.
-4. To sign out, go to Home and tap **Sign Out** at the bottom. If you have unsynced work, the app will warn you before signing out, since a queued purchase or registration may not reach the office if you sign out before it finishes syncing — wait for the badge to show **Synced** first if you can.
+1. **The very first time**, tap **Create Account**, enter your full name, your phone number, and a password you choose — then remember that password, since you'll need it every time you sign in again on a new phone.
+2. **After that**, tap **Sign In** and enter the same phone number and password.
+3. **The first time you sign in**, you'll land on an "Approval Needed" screen showing your phone number — this is expected. Tell your admin that phone number so they can approve it (see [[Config-Management]] "Staff account provisioning"). Once approved, tap **Check Again** on that screen (or just reopen the app).
+4. **You must sign in at least once while you have internet.** After that first successful sign-in, you can keep using the app fully offline — you won't be asked to sign in again on that phone unless you deliberately sign out.
+5. To sign out, go to Home and tap **Sign Out** at the bottom. If you have unsynced work, the app will warn you before signing out, since a queued purchase or registration may not reach the office if you sign out before it finishes syncing — wait for the badge to show **Synced** first if you can. Signing out fully ends your session, so a different staff member can then sign in with their own phone number and password on the same shared device.
 
 ## Approving new staff (admins only)
 
 If your account has been made an admin, you'll see an **Approve Requests** button on Home — a number in brackets shows how many staff sign-ins are waiting for a decision.
 
 1. Tap **Approve Requests**.
-2. Each pending request shows the person's name, Google email, and when they first tried to sign in.
+2. Each pending request shows the person's name, phone number, and when they first tried to sign in.
 3. Tap **Approve** to let them into the app, or **Reject** to turn them away (they can still try signing in again later — rejecting isn't permanent).
 4. Once you act, tell them to reopen the app (or tap **Check Again** if they still have it open on their "Approval Needed" screen).
 
@@ -130,10 +131,13 @@ There is currently no in-app edit for a saved purchase. Note the correction on y
 Each farmer only needs one FRN. If you suspect a duplicate, flag it to the office rather than registering again.
 
 **Do I need to log in?**
-Yes — every staff member signs in with their own Google account (see "Logging in" above), and an admin must approve your email before you get real access. You only need internet the first time; after that, you can keep working offline on that phone.
+Yes — every staff member signs in with their own phone number and password (see "Logging in" above), and an admin must approve your phone number before you get real access. You only need internet the first time; after that, you can keep working offline on that phone.
 
 **I signed in but I'm stuck on "Approval Needed" — what do I do?**
-That's expected the first time. Tell your admin the email address shown on that screen so they can approve it, then tap **Check Again**.
+That's expected the first time. Tell your admin the phone number shown on that screen so they can approve it, then tap **Check Again**.
+
+**I forgot my password — what do I do?**
+There is currently no in-app "forgot password" flow (and no SMS/email verification to send a reset link to, since sign-in uses a phone number rather than a real inbox). Tell your admin, who can reset your password directly for you in Firebase Console's Authentication tab; a proper in-app reset flow is planned (see [[Backlog]]).
 
 **What happens to the data I enter?**
 It's saved to Malaika Honey's central database (Firebase) and is used to pay farmers correctly, track supply, and — over time — to report on farmer income and honey quality improvements to Malaika's partners.

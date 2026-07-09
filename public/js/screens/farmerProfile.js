@@ -20,40 +20,38 @@ export async function renderFarmerProfile(root, { frn }) {
 
   mount(
     root,
-    el('div', { class: 'centered-screen' }, [
-      el('h1', {}, farmer.fullName),
-      el('p', { class: 'welcome' }, 'Farmer profile.'),
-      el('div', { class: 'frn-badge' }, 'FRN ' + farmer.frn),
+    el('h1', {}, farmer.fullName),
+    el('p', { class: 'welcome' }, 'Farmer profile.'),
+    el('div', { class: 'frn-badge' }, 'FRN ' + farmer.frn),
 
-      el('div', { class: 'card' }, [
-        el('div', { class: 'history-item', style: 'border:none;background:none;padding:4px 0' }, [
-          el('span', { class: 'sub' }, 'Village'),
-          el('span', {}, farmer.village + ', ' + farmer.district),
-        ]),
-        el('div', { class: 'history-item', style: 'border:none;background:none;padding:4px 0' }, [
-          el('span', { class: 'sub' }, 'Phone'),
-          el('span', {}, farmer.phone),
-        ]),
+    el('div', { class: 'card' }, [
+      el('div', { class: 'history-item', style: 'border:none;background:none;padding:4px 0' }, [
+        el('span', { class: 'sub' }, 'Village'),
+        el('span', {}, farmer.village + ', ' + farmer.district),
       ]),
-
-      el('div', { class: 'stat-row' }, [
-        el('div', { class: 'stat' }, [
-          el('div', { class: 'stat-value' }, (stats.totalKg || 0).toFixed(1) + ' kg'),
-          el('div', { class: 'stat-label' }, 'Lifetime'),
-        ]),
-        el('div', { class: 'stat' }, [
-          el('div', { class: 'stat-value' }, formatDate(stats.lastPurchaseAt)),
-          el('div', { class: 'stat-label' }, 'Last Delivery'),
-        ]),
-        el('div', { class: 'stat' }, [
-          el('div', { class: 'stat-value' }, formatUgx(stats.totalPaidUgx || 0)),
-          el('div', { class: 'stat-label' }, 'Total Paid'),
-        ]),
+      el('div', { class: 'history-item', style: 'border:none;background:none;padding:4px 0' }, [
+        el('span', { class: 'sub' }, 'Phone'),
+        el('span', {}, farmer.phone),
       ]),
+    ]),
 
-      el('a', { href: '#/buy/' + farmer.frn, class: 'btn btn-yellow' }, [iconEl('honeyJar'), 'Buy Produce']),
-      el('a', { href: '#/history/' + farmer.frn, class: 'btn btn-blue' }, [iconEl('history'), 'History']),
-      el('a', { href: '#/card/' + farmer.frn, class: 'btn btn-outline' }, [iconEl('idCard'), 'Farmer Card']),
-    ])
+    el('div', { class: 'stat-row' }, [
+      el('div', { class: 'stat' }, [
+        el('div', { class: 'stat-value' }, (stats.totalKg || 0).toFixed(1) + ' kg'),
+        el('div', { class: 'stat-label' }, 'Lifetime'),
+      ]),
+      el('div', { class: 'stat' }, [
+        el('div', { class: 'stat-value' }, formatDate(stats.lastPurchaseAt)),
+        el('div', { class: 'stat-label' }, 'Last Delivery'),
+      ]),
+      el('div', { class: 'stat' }, [
+        el('div', { class: 'stat-value' }, formatUgx(stats.totalPaidUgx || 0)),
+        el('div', { class: 'stat-label' }, 'Total Paid'),
+      ]),
+    ]),
+
+    el('a', { href: '#/buy/' + farmer.frn, class: 'btn btn-yellow' }, [iconEl('honeyJar'), 'Buy Produce']),
+    el('a', { href: '#/history/' + farmer.frn, class: 'btn btn-blue' }, [iconEl('history'), 'History']),
+    el('a', { href: '#/card/' + farmer.frn, class: 'btn btn-outline' }, [iconEl('idCard'), 'Farmer Card'])
   );
 }

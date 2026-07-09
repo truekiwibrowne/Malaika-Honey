@@ -1,4 +1,4 @@
-import { collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { collection, getDocs, getDocsFromCache } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { db } from './firebase.js';
 import { getCountryCode } from './country.js';
 
@@ -15,10 +15,17 @@ import { getCountryCode } from './country.js';
  * network activity (nothing cached yet) and a collection an admin simply
  * hasn't populated yet, since these collections ship empty until someone
  * edits them via Firebase Console (see docs/Config-Management.md).
+ *
+ * When offline, reads from cache only (getDocsFromCache) rather than a
+ * plain getDocs, which still tries the server first and can take several
+ * seconds to time out and fall back on a cold start with no signal -
+ * making the New Farmer/Buy Produce forms feel stuck instead of just
+ * using what's already cached.
  */
 async function getOptionList(collectionName, fallback) {
   try {
-    const snap = await getDocs(collection(db, collectionName));
+    const ref = collection(db, collectionName);
+    const snap = navigator.onLine ? await getDocs(ref) : await getDocsFromCache(ref);
     const docs = snap.docs
       .map((d) => ({ id: d.id, ...d.data() }))
       .filter((d) => d.active !== false)

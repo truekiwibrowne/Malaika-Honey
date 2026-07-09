@@ -1,4 +1,4 @@
-import { collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { collection, getDocs, getDocsFromCache } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { db } from '../lib/firebase.js';
 import { el, mount } from '../lib/ui.js';
 import { iconEl } from '../lib/icons.js';
@@ -73,7 +73,8 @@ export function renderHome(root) {
     .catch(() => {});
 
   if (isAdmin && approveBtn) {
-    getDocs(collection(db, 'signupRequests'))
+    const ref = collection(db, 'signupRequests');
+    (navigator.onLine ? getDocs(ref) : getDocsFromCache(ref))
       .then((snap) => {
         const pending = snap.docs.filter((d) => d.data().status === 'pending').length;
         if (pending > 0) {

@@ -3,13 +3,37 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
   signOut,
   onAuthStateChanged,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
-import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { doc, getDoc, getDocFromCache, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { auth, db } from './firebase.js';
 
 const googleProvider = new GoogleAuthProvider();
+// Always show the account chooser, even if the browser only knows one
+// Google account - without this, Google silently re-signs-in the last
+// account with no picker, making it look impossible to switch users on
+// a shared device. Currently moot while Google Sign-In is hidden (see
+// constants.js GOOGLE_SIGNIN_ENABLED), but keeps the path correct for
+// whenever it's turned back on.
+googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+const PHONE_EMAIL_DOMAIN = 'staff.malaikahoney.local';
+
+/**
+ * Turns a staff-entered phone number into the synthetic email Firebase
+ * Auth's email/password provider actually stores the account under -
+ * strips everything but digits so small formatting differences ("077...",
+ * "+256 77...") don't accidentally create two different accounts for the
+ * same person, as long as staff are consistent about how they type it.
+ */
+export function phoneToEmail(phone) {
+  const digits = phone.replace(/\D/g, '');
+  return digits + '@' + PHONE_EMAIL_DOMAIN;
+}
 
 function friendlyAuthError(err) {
   switch (err.code) {
@@ -22,8 +46,54 @@ function friendlyAuthError(err) {
       return 'Your browser blocked the sign-in popup. Please allow popups for this site and try again.';
     case 'auth/account-exists-with-different-credential':
       return 'This email is already linked to a different sign-in method.';
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/user-not-found':
+      return 'Incorrect phone number or password.';
+    case 'auth/email-already-in-use':
+      return 'An account already exists for this phone number. Use Sign In instead.';
+    case 'auth/weak-password':
+      return 'Password must be at least 6 characters.';
+    case 'auth/invalid-email':
+      return 'Please enter a valid phone number.';
     default:
       return 'Could not sign in. ' + (err.message || 'Please try again.');
+  }
+}
+
+/**
+ * Returning staff member: phone + their existing password. See
+ * createAccountWithPhone for first-time sign-up.
+ */
+export async function signInWithPhone(phone, password) {
+  try {
+    const credential = await signInWithEmailAndPassword(auth, phoneToEmail(phone), password);
+    return credential.user;
+  } catch (err) {
+    throw new Error(friendlyAuthError(err));
+  }
+}
+
+/**
+ * First-time sign-up: staff choose their own password against their phone
+ * number. Deliberately a separate action from signInWithPhone rather than
+ * one "auto-detect" flow - modern Firebase Auth returns the same generic
+ * error for "wrong password" and "no such account" (to prevent account
+ * enumeration), so there's no reliable way to tell them apart and decide
+ * sign-in-vs-create automatically. Access still isn't granted just by
+ * creating the account - it feeds into the exact same allowedStaff /
+ * signupRequests / admin-approval flow as Google Sign-In (see
+ * refreshAuthorization below and docs/Database-Schema.md "Staff accounts").
+ */
+export async function createAccountWithPhone(phone, password, displayName) {
+  try {
+    const credential = await createUserWithEmailAndPassword(auth, phoneToEmail(phone), password);
+    if (displayName) {
+      await updateProfile(credential.user, { displayName });
+    }
+    return credential.user;
+  } catch (err) {
+    throw new Error(friendlyAuthError(err));
   }
 }
 
@@ -110,6 +180,34 @@ export function currentDisplayName() {
   return user.email ? user.email.split('@')[0] : user.uid;
 }
 
+/**
+ * Human-facing identity string for a signed-in user - a phone-based
+ * account's real email is a synthetic address (see phoneToEmail) that
+ * would only confuse staff if shown as-is, so this strips it back down
+ * to the phone number they actually typed. Google accounts just show
+ * their real email.
+ */
+export function identityLabel(user) {
+  if (!user) return 'your account';
+  if (user.email && user.email.endsWith('@' + PHONE_EMAIL_DOMAIN)) {
+    return user.email.split('@')[0];
+  }
+  return user.email || user.uid;
+}
+
+/**
+ * Same idea as identityLabel, but for the raw email string stored on a
+ * signupRequests/allowedStaff document (used by adminApprovals.js) rather
+ * than a live Firebase user object - returns the phone number for a
+ * synthetic phone-account email, or null if `email` is a real address.
+ */
+export function phoneFromSyntheticEmail(email) {
+  if (email && email.endsWith('@' + PHONE_EMAIL_DOMAIN)) {
+    return email.split('@')[0];
+  }
+  return null;
+}
+
 function tutorialSeenKey(uid) {
   return 'tutorialSeen:' + uid;
 }
@@ -189,15 +287,23 @@ function recordSignupRequest(user) {
  * Confirms whether the signed-in user's email is on the allowedStaff
  * allowlist (see firestore.rules and docs/Config-Management.md "Staff
  * account provisioning"). Must be awaited before routing a freshly
- * signed-in user anywhere, since access is gated on the result. If the
- * check can't reach the server (offline), falls back to whatever was
- * already established locally rather than demoting a previously-approved
- * staff member just because they're offline.
+ * signed-in user anywhere, since access is gated on the result.
+ *
+ * When offline, this deliberately reads from cache only
+ * (getDocFromCache) instead of attempting a live getDoc - a plain getDoc
+ * still tries the server first and only falls back to cache after
+ * detecting it can't connect, which can take several seconds on a cold
+ * app start with no signal, making the app feel like it's hanging/not
+ * working even though the answer was sitting in cache the whole time.
+ * If nothing is cached yet (never confirmed online before), falls back to
+ * whatever was already established locally rather than demoting a
+ * previously-approved staff member just because they're offline.
  */
 export async function refreshAuthorization(user) {
   if (!user || !user.email) return false;
+  const ref = doc(db, 'allowedStaff', user.email);
   try {
-    const snap = await getDoc(doc(db, 'allowedStaff', user.email));
+    const snap = navigator.onLine ? await getDoc(ref) : await getDocFromCache(ref);
     if (snap.exists()) {
       localStorage.setItem(authorizedKey(user.uid), '1');
       if (snap.data().role === 'admin') {
@@ -205,7 +311,7 @@ export async function refreshAuthorization(user) {
       }
       return true;
     }
-    recordSignupRequest(user);
+    if (navigator.onLine) recordSignupRequest(user);
     return false;
   } catch {
     return isAuthorizedLocally(user.uid);

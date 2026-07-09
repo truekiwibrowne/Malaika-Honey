@@ -21,11 +21,9 @@ export async function renderHistory(root, { frn }) {
 
   mount(
     root,
-    el('div', { class: 'centered-screen' }, [
-      el('h1', {}, 'History'),
-      el('p', { class: 'welcome' }, (farmer ? farmer.fullName : frn) + ' · ' + frn),
-      el('hr', { class: 'hr' }),
-      ...items,
-    ])
+    el('h1', {}, 'History'),
+    el('p', { class: 'welcome' }, (farmer ? farmer.fullName : frn) + ' · ' + frn),
+    el('hr', { class: 'hr' }),
+    ...items
   );
 }
