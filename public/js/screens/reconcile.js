@@ -85,7 +85,7 @@ export async function renderReconcile(root) {
       mount(
         root,
         el('div', { class: 'centered-screen' }, [
-          el('h1', {}, 'Fix Unverified Purchases'),
+          el('h1', { style: 'text-align:center' }, 'Fix Unverified Purchases'),
           el('div', { class: 'confirm-icon' }, [iconEl('check')]),
           el('div', { class: 'empty-state' }, 'Nothing to fix — every purchase is matched to a farmer.'),
         ])

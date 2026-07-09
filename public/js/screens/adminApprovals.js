@@ -2,6 +2,7 @@ import {
   collection,
   getDocs,
   getDocsFromCache,
+  getDoc,
   doc,
   setDoc,
   updateDoc,
@@ -29,8 +30,23 @@ async function getPendingRequests() {
     .sort((a, b) => (a.requestedAt?.seconds ?? 0) - (b.requestedAt?.seconds ?? 0));
 }
 
+/**
+ * Firestore rules only allow an admin to `create` an allowedStaff
+ * document, never `update` one (revoking access or changing role stays
+ * Console-only, by design - see docs/Database-Schema.md "Staff
+ * accounts"). If this email already has a document - e.g. an admin
+ * bootstrapped directly in Console per docs/Config-Management.md, who
+ * still has a stale pending request left over from their very first
+ * sign-in attempt - a plain setDoc would be an "update" against an
+ * existing document and get rejected. Skip the write entirely in that
+ * case; they already have access, so there's nothing to grant.
+ */
 async function approveRequest(request) {
-  await setDoc(doc(db, 'allowedStaff', request.email), { addedAt: serverTimestamp() });
+  const staffRef = doc(db, 'allowedStaff', request.email);
+  const existing = await getDoc(staffRef);
+  if (!existing.exists()) {
+    await setDoc(staffRef, { addedAt: serverTimestamp() });
+  }
   await updateDoc(doc(db, 'signupRequests', request.id), {
     status: 'approved',
     resolvedAt: serverTimestamp(),
@@ -115,7 +131,7 @@ export async function renderAdminApprovals(root) {
       mount(
         root,
         el('div', { class: 'centered-screen' }, [
-          el('h1', {}, 'Approve Requests'),
+          el('h1', { style: 'text-align:center' }, 'Approve Requests'),
           el('div', { class: 'confirm-icon' }, [iconEl('check')]),
           el('div', { class: 'empty-state' }, 'No pending sign-in requests.'),
         ])

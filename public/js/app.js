@@ -45,6 +45,17 @@ addRoute('/card/:frn', (params) => renderCard(root, params), { headerMode: 'sub'
 
 initOfflineBanner();
 
+// Caches the app shell itself (see public/sw.js) so a fresh, offline
+// navigation - e.g. reopening the app after it was force-quit with no
+// connection - can still load, instead of the browser's own "no
+// internet" error page. Separate from, and in addition to, Firestore's
+// own offline data cache.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch((err) => {
+    console.warn('[Malaika Honey] Service worker registration failed:', err.message);
+  });
+}
+
 async function start() {
   try {
     await consumeRedirectResult();

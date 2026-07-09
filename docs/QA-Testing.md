@@ -26,6 +26,7 @@ Open `http://localhost:5000`. The app auto-detects `localhost` and connects to t
 - [ ] Sign out (**Sign Out** button at the bottom of Home) and confirm it returns to Login and blocks access to other routes until signed back in.
 - [ ] After signing out, confirm the login screen does **not** auto-sign back in as the previous user, and that a **different** phone number can immediately create/sign into its own account on the same browser/device.
 - [ ] Confirm the Google Sign-In button is **not** visible on Login by default (`GOOGLE_SIGNIN_ENABLED` is `false`); if testing that path specifically, flip the flag locally and confirm the button reappears and still works.
+- [ ] Confirm the Password field on Login is the same height/size as the Phone Number field above it (a missing `input[type="password"]` CSS rule previously left it at the browser's smaller default size).
 
 ### 0b. Admin approvals
 - [ ] Sign in with a non-admin `allowedStaff` account and confirm **no** "Approve Requests" button appears on Home.
@@ -36,6 +37,8 @@ Open `http://localhost:5000`. The app auto-detects `localhost` and connects to t
 - [ ] Generate a second `signupRequests` entry and tap **Reject** — confirm it disappears from the list, **no** `allowedStaff` document is created, and the request is updated to `status: 'rejected'`.
 - [ ] Confirm that rejected account signing in again generates a **fresh pending request** (rejection isn't permanent) rather than being silently blocked with no path forward.
 - [ ] As a non-admin approved account, confirm direct navigation to `#/admin/approvals` does not expose other staff's pending requests (Firestore rules should deny the `list` read — the screen should show an error/empty state, not real data).
+- [ ] Approve a pending request whose `allowedStaff` document **already exists** (e.g. an admin bootstrapped directly in Console per [[Config-Management]], who still has a stale pending request from their own first sign-in attempt) — confirm this succeeds and clears the request, rather than a silent `permission-denied` (Firestore rules only allow `create`, not `update`, on `allowedStaff` — approving must skip the write entirely when a document already exists rather than attempting to overwrite it).
+- [ ] Confirm the "No pending sign-in requests." empty state is vertically **and** horizontally centered, not stuck at the top-left.
 
 ### 1. New Farmer registration
 - [ ] From Home, tap **New Farmer**.
@@ -87,6 +90,7 @@ Open `http://localhost:5000`. The app auto-detects `localhost` and connects to t
 
 ### 6. Offline behavior (critical — test on every release that touches data writes)
 - [ ] Sign in once while online, then load the app once more while online (so the shell is cached).
+- [ ] **Force-quit the app/browser tab entirely**, enable airplane mode, then reopen the app fresh (not just a reload of an already-open tab) — confirm it still loads to the login/Home screen rather than the browser's own "no internet" error page. (This is the app-shell cache from `public/sw.js`, separate from Firestore's data cache — see [[Release-Management]] "Offline app shell caching.")
 - [ ] Enable airplane mode / disconnect network and confirm the header badge shows **Offline**.
 - [ ] Confirm the app does **not** bounce to the login screen while offline (session persists locally).
 - [ ] Register a new farmer while offline — confirm it still shows a success screen with an FRN (device-coded, minted with no server round-trip).

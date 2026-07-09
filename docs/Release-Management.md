@@ -15,15 +15,22 @@ No long-lived `develop` branch — at this scale it adds overhead without benefi
 1. Merge one or more feature/hotfix branches into `main` via PR.
 2. Update [[Changelog]] with the change under an `Unreleased` section as you go; move it under a dated version heading at release time.
 3. Bump `APP_VERSION` in `public/js/lib/constants.js` (semantic versioning: `MAJOR.MINOR.PATCH`).
-4. Tag the release in git: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-5. Deploy (see below).
-6. Smoke-test production against the [[QA-Testing]] golden-path checklist before telling staff to use the new version.
+4. Bump `CACHE_NAME` in `public/sw.js` to match (e.g. `malaika-shell-v1.2.3`) — this is what evicts the old cached app shell on a returning device and makes sure staff actually get the new release rather than an indefinitely-stale offline-cached copy of the old one (see "Offline app shell caching" below).
+5. Tag the release in git: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+6. Deploy (see below).
+7. Smoke-test production against the [[QA-Testing]] golden-path checklist before telling staff to use the new version.
 
 ### Versioning guide
 
 - **PATCH** (`1.0.1`): bug fix, copy change, style tweak — no behavior change for staff.
 - **MINOR** (`1.1.0`): new feature (e.g. a new field, a new screen) that's backward compatible.
 - **MAJOR** (`2.0.0`): breaking change to data shape or workflow that requires staff retraining or a data migration.
+
+### Offline app shell caching
+
+`public/sw.js` is a service worker that precaches the app shell (HTML/CSS/JS/icons, plus the pinned Firebase SDK CDN files) so the app can still open with zero connectivity — e.g. after being force-quit and reopened while offline, which previously showed the browser's own "no internet" error before any app code could run. This is separate from Firestore's own offline *data* cache (see [[System-Architecture]] "Offline behavior in detail"), which only covers documents, not the page itself.
+
+Because of this, staff won't see a new release until their device gets a chance to fetch the updated `sw.js` and its new `CACHE_NAME` while online (the old cache is deleted once the new one activates) — normal for a PWA, but worth knowing if a fix doesn't seem to have "reached" a specific device yet: it will, the next time that phone is online.
 
 ## Deployment targets
 

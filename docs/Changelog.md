@@ -6,6 +6,16 @@ All notable changes to this project are documented here. Format loosely follows 
 
 Nothing yet.
 
+## [0.5.2] - 2026-07-09
+
+### Added
+- **`public/sw.js`**: a service worker that precaches the app shell (HTML/CSS/JS/icons + the pinned Firebase SDK CDN files), registered from `app.js`. Fixes the app failing to open at all — showing the browser's own "no internet" error — when force-quit and reopened with no connectivity. This is separate from Firestore's own offline *data* cache, which only ever covered documents, not the page itself. See [[Release-Management]] "Offline app shell caching" for the release-process implication (bump `CACHE_NAME` alongside `APP_VERSION` on every release).
+
+### Fixed
+- **Password field on Login** rendered noticeably smaller than the Phone Number field above it — `input[type="password"]` was missing from the shared input styling rule in `styles.css` (every other input type was listed explicitly), so it fell back to the browser's own smaller default size.
+- **Approve Requests' empty state** ("No pending sign-in requests.") had its heading left-aligned instead of centered like the rest of that screen — added the same `text-align:center` styling already used consistently elsewhere (Login, Not Authorized, the success screens). Reconcile's matching "nothing to fix" empty state had the same issue, fixed the same way.
+- **Approving a signup request silently failed** (`permission-denied`, caught but not obviously surfaced) whenever that email already had an `allowedStaff` document — e.g. an admin bootstrapped directly in Firebase Console per [[Config-Management]], who still had a stale pending request left over from their own first sign-in attempt. Firestore rules only allow an admin to `create` an `allowedStaff` document, never `update` one, by design (revoking access or changing role stays Console-only) — a plain `setDoc` against an *existing* document is legally an "update" and got rejected. `approveRequest` now checks first and skips the write entirely if the document already exists (nothing to grant), only ever `create`-ing a genuinely new one.
+
 ## [0.5.1] - 2026-07-09
 
 Phone number + password as the primary sign-in method (Google Sign-In hidden but retained), a systemic offline-read performance fix, screen-layout corrections based on real-device feedback, and a dark-mode logo fix.
