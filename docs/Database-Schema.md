@@ -149,8 +149,26 @@ The admin-managed allowlist that gates real access. Document ID is the staff mem
 | Field | Type | Notes |
 |---|---|---|
 | `addedAt` | string or timestamp | Informational only — when the admin approved this email. Not read by the app; the document's mere existence is what grants access |
+| `role` | string, absent or `'admin'` | Absent (or any other value) means a regular staff account. `'admin'` grants access to `/admin/approvals` and the ability to approve/reject `signupRequests` from within the app — see below. Can only ever be set via Firebase Console/Admin SDK, never from the client |
 
-The document can otherwise be empty — the rules only check `exists()`, not any field value. See "Staff accounts" below and [[Config-Management]] "Staff account provisioning" for how entries are added.
+The document can otherwise be empty — the rules only check `exists()`, not any field value (except `role`, read by `isAdmin()`). See "Staff accounts" below and [[Config-Management]] "Staff account provisioning" for how entries are added.
+
+### `signupRequests/{email}`
+
+Created client-side by a signed-in-but-unapproved user the first time they're turned away (see `public/js/lib/auth.js` `recordSignupRequest`), so an admin can see and act on it from the in-app `/admin/approvals` screen instead of needing to watch Firebase Console.
+
+| Field | Type | Notes |
+|---|---|---|
+| `email` | string | Redundant copy of the doc ID |
+| `displayName` | string | From the Google account |
+| `uid` | string | The requester's Firebase Auth UID |
+| `status` | string enum: `pending`, `approved`, `rejected` | `pending` until an admin acts. Re-attempting sign-in while still pending just refreshes `lastAttemptAt`; if previously rejected, a fresh sign-in attempt sets it back to `pending` rather than leaving the person permanently stuck with no path to re-request |
+| `requestedAt` | timestamp | Set once, on first creation |
+| `lastAttemptAt` | timestamp | Updated on every sign-in attempt while still unapproved |
+| `resolvedAt` | timestamp or absent | Set when an admin approves/rejects |
+| `resolvedBy` | string or absent | The admin's display name |
+
+Approving a request (`/admin/approvals`, `adminApprovals.js` `approveRequest`) creates the corresponding `allowedStaff/{email}` document and sets `status: 'approved'`; rejecting only sets `status: 'rejected'` — no `allowedStaff` document is created, so the person stays blocked. Records are kept (not deleted) for an audit trail, and the fetch behind `/admin/approvals` filters to `status == 'pending'` client-side.
 
 ## Staff accounts (Google Sign-In + admin allowlist)
 
@@ -164,4 +182,8 @@ Sessions persist locally (`browserLocalPersistence`) so a staff member who has s
 
 ## Firestore Security Rules (summary)
 
-See `firestore.rules` in the repo root. Every `farmers`, `purchases`, and `devices` operation requires **both** `request.auth != null` **and** the signed-in user's email existing in `allowedStaff` (an `isApprovedStaff()` helper function in the rules file encapsulates this check). `allowedStaff` itself only allows a signed-in user to `get` their own document (to check their own status) — nobody can list the roster or write to it from the client; entries are added only via Firebase Console's Firestore Data tab (or the Admin SDK, which bypasses rules). `devices/{deviceCode}` additionally allows `create` only if the document doesn't already exist yet, and disallows `update`/`delete` entirely, so a device code can never be silently overwritten. The retired `counters/{counterId}` collection still allows `read` for approved staff (harmless, unused) but no longer allows `write`.
+See `firestore.rules` in the repo root. Every `farmers`, `purchases`, and `devices` operation requires **both** `request.auth != null` **and** the signed-in user's email existing in `allowedStaff` (an `isApprovedStaff()` helper function in the rules file encapsulates this check). An `isAdmin()` helper additionally checks that the signed-in user's own `allowedStaff` document has `role == 'admin'`.
+
+`allowedStaff` allows a signed-in user to `get` their own document (to check their own status), and now additionally allows an **admin** to `create` new entries (approving a `signupRequests` entry from within the app) — but `list`/`update`/`delete` remain fully client-blocked; revoking access or changing someone's role stays a Console-only action. `signupRequests` allows any signed-in user to `create` their own entry and read (`get`) it back, but only an admin can `list` the pending queue or `update` (resolve) a request.
+
+`devices/{deviceCode}` additionally allows `create` only if the document doesn't already exist yet, and disallows `update`/`delete` entirely, so a device code can never be silently overwritten. The retired `counters/{counterId}` collection still allows `read` for approved staff (harmless, unused) but no longer allows `write`.

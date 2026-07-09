@@ -6,6 +6,19 @@ All notable changes to this project are documented here. Format loosely follows 
 
 Nothing yet.
 
+## [0.4.0] - 2026-07-09
+
+In-app admin approval flow, replacing the Firebase Console-only staff approval step for day-to-day use.
+
+### Added
+- **`allowedStaff.role`**: a staff account can now be marked `'admin'` (Console-only, can never be granted from within the app).
+- **`signupRequests/{email}`**: automatically created when a signed-in-but-unapproved user is turned away, so an admin can see who's waiting.
+- **Approve Requests** button on Home (admin accounts only, with a pending-count badge) → new `/admin/approvals` screen listing pending sign-in requests with **Approve**/**Reject** actions. Approve creates the `allowedStaff` entry; reject leaves the person blocked but not permanently — signing in again later generates a fresh pending request.
+- Firestore rules: new `isAdmin()` helper; `allowedStaff` now allows `create` (not `update`/`delete`) for admins; new `signupRequests` collection rules (self-serve `create`/own `get`, admin-only `list`/`update`).
+
+### Fixed
+- QA-Testing.md referenced a header sign-out icon that no longer exists since sign-out moved to a Home-screen button in 0.2.5 — corrected the stale checklist wording.
+
 ## [0.3.0] - 2026-07-07
 
 Products, grades, payment methods, farm sizes, districts, and the New Farmer form's own field set are now admin-editable Firestore collections instead of hardcoded lists, ahead of the future admin app owning this UI.

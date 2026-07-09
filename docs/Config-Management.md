@@ -65,18 +65,25 @@ See [[Release-Management]] for the full branching and deployment workflow.
 
 ## Staff account provisioning
 
-Staff sign themselves in with Google (self-service, no Console step needed just to attempt sign-in), but only get real access once their email is approved on the `allowedStaff` allowlist (see [[Database-Schema]] "Staff accounts"). There is no in-app admin UI for this yet (that's Milestone 3 territory — see [[Backlog]]), so approving someone is a manual Firestore write:
+Staff sign themselves in with Google (self-service, no Console step needed just to attempt sign-in), but only get real access once their email is approved on the `allowedStaff` allowlist (see [[Database-Schema]] "Staff accounts"). There are now two ways to approve someone — an in-app flow for day-to-day use, and a Console fallback for bootstrapping the very first admin (or if the in-app flow is ever unavailable).
 
-1. Ask the staff member to open the app and tap **Sign in with Google** once — they'll land on an "Approval Needed" screen showing their signed-in email. They don't need to do anything else at this point.
-2. Firebase Console → **Firestore Database** → `allowedStaff` collection → **Add document**.
-3. Document ID: their exact email address as shown on their "Approval Needed" screen (e.g. `jokello@gmail.com`). No fields are required — the document existing at all is what grants access — but adding a note field (e.g. `addedAt`) is fine for your own record-keeping.
-4. Tell them to reopen the app and tap **Check Again** on the approval screen (or just reload the app) — they'll land on Home.
+### In-app (normal way, once at least one admin exists)
+
+1. Ask the staff member to open the app and tap **Sign in with Google** once — they'll land on an "Approval Needed" screen showing their signed-in email. This automatically creates a `signupRequests` entry, visible to admins.
+2. An admin opens the app, taps **Approve Requests** on Home, and taps **Approve** (or **Reject**) next to that person's name/email.
+3. Tell them to reopen the app and tap **Check Again** on the approval screen (or just reload the app) — they'll land on Home.
+
+### Via Firebase Console (bootstrapping the first admin, or as a fallback)
+
+1. Firebase Console → **Firestore Database** → `allowedStaff` collection → **Add document**.
+2. Document ID: their exact email address as shown on their "Approval Needed" screen (e.g. `jokello@gmail.com`). No fields are required to grant plain staff access — but adding a note field (e.g. `addedAt`) is fine for your own record-keeping.
+3. **To make this person an admin** (able to see and act on `/admin/approvals`), add a `role` field with string value `admin` to their document. This is the **only** way to grant admin — it can never be done from within the app itself, by design, so a compromised staff account can't grant itself or others elevated access.
 
 **Prerequisite (one-time, per Firebase project):** the Google sign-in provider must be enabled in Firebase Console → **Authentication** → **Sign-in method** → **Google** → **Enable**, before any of the above works in production.
 
-To revoke access, delete that person's document from `allowedStaff` — note that a device that already has cached access won't be blocked until it next reaches the server (see [[Risk-Register]]).
+To revoke access, delete that person's document from `allowedStaff` (Console only — this can't be done from the app). Note that a device that already has cached access won't be blocked until it next reaches the server (see [[Risk-Register]]).
 
-Locally, sign in against the **Auth emulator** (`http://localhost:4000/auth` when `./.tools/run-emulators.sh` is running) — it fakes the Google consent screen with a form, no real Google account needed — and add allowlist entries directly to the **Firestore emulator** the same way (Emulator UI's Firestore tab, or the Admin SDK, both of which bypass rules the way Console does against production).
+Locally, sign in against the **Auth emulator** (`http://localhost:4000/auth` when `./.tools/run-emulators.sh` is running) — it fakes the Google consent screen with a form, no real Google account needed — and add allowlist entries (with `role: admin` for a test admin) directly to the **Firestore emulator** the same way (Emulator UI's Firestore tab, or the Admin SDK, both of which bypass rules the way Console does against production).
 
 ## Editing reference data
 

@@ -23,6 +23,7 @@ import { renderBuyProduce, renderBuyProduceEntry, renderBuyProduceSuccess } from
 import { renderHistory } from './screens/history.js';
 import { renderCard } from './screens/card.js';
 import { renderReconcile } from './screens/reconcile.js';
+import { renderAdminApprovals } from './screens/adminApprovals.js';
 
 const root = document.getElementById('screen-root');
 
@@ -31,6 +32,7 @@ addRoute('/not-authorized', () => renderNotAuthorized(root), { headerMode: 'sub'
 addRoute('/tutorial', () => renderTutorial(root), { headerMode: 'sub', backTo: '#/home' });
 addRoute('/home', () => renderHome(root), { headerMode: 'home' });
 addRoute('/reconcile', () => renderReconcile(root), { headerMode: 'sub', backTo: '#/home' });
+addRoute('/admin/approvals', () => renderAdminApprovals(root), { headerMode: 'sub', backTo: '#/home' });
 addRoute('/new-farmer', () => renderNewFarmer(root), { headerMode: 'sub', backTo: '#/home' });
 addRoute('/new-farmer/success/:frn', (params) => renderNewFarmerSuccess(root, params), { headerMode: 'sub', backTo: '#/home' });
 addRoute('/find-farmer', () => renderFindFarmer(root), { headerMode: 'sub', backTo: '#/home' });

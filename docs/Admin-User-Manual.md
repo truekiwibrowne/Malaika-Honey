@@ -16,7 +16,18 @@ The app requires you to sign in with your own Google account before you can use 
 1. Tap **Sign in with Google** and choose your Google account.
 2. **The first time**, you'll land on an "Approval Needed" screen showing your email — this is expected. Tell your admin that email address so they can approve it (see [[Config-Management]] "Staff account provisioning"). Once approved, tap **Check Again** on that screen (or just reopen the app).
 3. **You must sign in at least once while you have internet.** After that first successful sign-in, you can keep using the app fully offline — you won't be asked to sign in again on that phone unless you deliberately sign out.
-4. To sign out, tap the sign-out icon in the top-right corner of any screen (not shown on Home). If you have unsynced work, the app will warn you before signing out, since a queued purchase or registration may not reach the office if you sign out before it finishes syncing — wait for the badge to show **Synced** first if you can.
+4. To sign out, go to Home and tap **Sign Out** at the bottom. If you have unsynced work, the app will warn you before signing out, since a queued purchase or registration may not reach the office if you sign out before it finishes syncing — wait for the badge to show **Synced** first if you can.
+
+## Approving new staff (admins only)
+
+If your account has been made an admin, you'll see an **Approve Requests** button on Home — a number in brackets shows how many staff sign-ins are waiting for a decision.
+
+1. Tap **Approve Requests**.
+2. Each pending request shows the person's name, Google email, and when they first tried to sign in.
+3. Tap **Approve** to let them into the app, or **Reject** to turn them away (they can still try signing in again later — rejecting isn't permanent).
+4. Once you act, tell them to reopen the app (or tap **Check Again** if they still have it open on their "Approval Needed" screen).
+
+Only an existing admin can make someone else an admin, and that step still has to be done directly in Firebase Console (see [[Config-Management]] "Staff account provisioning") — this is deliberate, so admin access can never be granted from inside the app itself.
 
 ## What the sync badge means
 

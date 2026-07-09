@@ -1,8 +1,10 @@
+import { collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { db } from '../lib/firebase.js';
 import { el, mount } from '../lib/ui.js';
 import { iconEl } from '../lib/icons.js';
 import { APP_VERSION } from '../lib/constants.js';
 import { getUnverifiedPurchases } from '../lib/db.js';
-import { signOutStaff } from '../lib/auth.js';
+import { signOutStaff, getCurrentUser, isAdminLocally } from '../lib/auth.js';
 import { getSyncState } from '../lib/sync.js';
 
 function handleSignOut() {
@@ -19,6 +21,12 @@ function handleSignOut() {
 
 export function renderHome(root) {
   const reconcileBanner = el('div', { hidden: true });
+  const user = getCurrentUser();
+  const isAdmin = !!user && isAdminLocally(user.uid);
+
+  const approveBtn = isAdmin
+    ? el('a', { href: '#/admin/approvals', class: 'btn btn-outline' }, [iconEl('idCard'), 'Approve Requests'])
+    : null;
 
   mount(
     root,
@@ -42,6 +50,7 @@ export function renderHome(root) {
         { href: '#/buy', class: 'btn btn-yellow' },
         [iconEl('honeyJar'), 'Buy Produce']
       ),
+      approveBtn,
     ]),
     el('button', { type: 'button', class: 'btn btn-secondary', onClick: handleSignOut }, [iconEl('logout'), 'Sign Out']),
     el('div', { class: 'home-footer' }, [
@@ -62,4 +71,15 @@ export function renderHome(root) {
       );
     })
     .catch(() => {});
+
+  if (isAdmin && approveBtn) {
+    getDocs(collection(db, 'signupRequests'))
+      .then((snap) => {
+        const pending = snap.docs.filter((d) => d.data().status === 'pending').length;
+        if (pending > 0) {
+          approveBtn.replaceChildren(iconEl('idCard'), document.createTextNode(' Approve Requests (' + pending + ')'));
+        }
+      })
+      .catch(() => {});
+  }
 }

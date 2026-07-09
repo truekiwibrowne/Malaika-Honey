@@ -21,7 +21,17 @@ Open `http://localhost:5000`. The app auto-detects `localhost` and connects to t
 - [ ] For an account that hasn't seen the tutorial yet, confirm sign-in routes to the 4-slide tutorial instead of straight to Home, and that **Skip** and **Get Started** (final slide) both land on Home and mark the tutorial seen (won't show again for that account on that device).
 - [ ] Confirm reloading the app while already signed in and approved goes straight to Home (no login flash, no repeated tutorial, no repeated approval check hitting the network).
 - [ ] Confirm reloading the app **offline** while already signed in and previously approved still reaches Home (authorization must be cached locally, not re-checked live every load).
-- [ ] Sign out (icon in the header on any non-Home screen) and confirm it returns to Login and blocks access to other routes until signed back in.
+- [ ] Sign out (**Sign Out** button at the bottom of Home) and confirm it returns to Login and blocks access to other routes until signed back in.
+
+### 0b. Admin approvals
+- [ ] Sign in with a non-admin `allowedStaff` account and confirm **no** "Approve Requests" button appears on Home.
+- [ ] Add `role: 'admin'` to that account's `allowedStaff` document (Console or emulator), reload, and confirm the button now appears — with a `(N)` count matching the number of `pending` `signupRequests`.
+- [ ] Sign in with a brand-new Google account (not on the allowlist) to generate a `signupRequests` entry, then as the admin, open **Approve Requests** and confirm that request appears with the correct name/email/date.
+- [ ] Tap **Approve** and confirm: the request disappears from the list, an `allowedStaff` document now exists for that email, and the `signupRequests` document is updated to `status: 'approved'` with `resolvedAt`/`resolvedBy` set.
+- [ ] Confirm the newly-approved account can now sign in and reach Home directly (no more "Approval Needed").
+- [ ] Generate a second `signupRequests` entry and tap **Reject** — confirm it disappears from the list, **no** `allowedStaff` document is created, and the request is updated to `status: 'rejected'`.
+- [ ] Confirm that rejected account signing in again generates a **fresh pending request** (rejection isn't permanent) rather than being silently blocked with no path forward.
+- [ ] As a non-admin approved account, confirm direct navigation to `#/admin/approvals` does not expose other staff's pending requests (Firestore rules should deny the `list` read — the screen should show an error/empty state, not real data).
 
 ### 1. New Farmer registration
 - [ ] From Home, tap **New Farmer**.
@@ -88,8 +98,8 @@ Open `http://localhost:5000`. The app auto-detects `localhost` and connects to t
 - [ ] Confirm the Home banner's count decreases (or the banner disappears entirely once none remain).
 
 ### 8. Header and sync badge, every screen
-- [ ] Confirm Home shows the full logo + sync badge, with no back/home/sign-out icons.
-- [ ] Confirm every other authenticated screen shows back/home/sign-out icons + the sync badge, with **no** logo.
+- [ ] Confirm Home shows the full logo + sync badge, with no back/home icons and no header sign-out icon (Sign Out lives only as a button at the bottom of Home).
+- [ ] Confirm every other authenticated screen shows back/home icons + the sync badge, with **no** logo and no sign-out control at all.
 - [ ] Confirm the back icon returns to a sensible previous screen (not always Home) — e.g. from Farmer Card it should return to that farmer's Profile, from History likewise.
 - [ ] Confirm Login shows only the bare logo (no sync badge, no icons).
 

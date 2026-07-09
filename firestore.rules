@@ -13,14 +13,40 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/allowedStaff/$(request.auth.token.email));
     }
 
+    // True only for a staff account whose OWN allowedStaff document has
+    // role == 'admin' (bootstrapped manually via Console - see
+    // docs/Config-Management.md "Staff account provisioning"). Lets an
+    // admin approve/reject signupRequests and create new allowedStaff
+    // entries from within the app itself, instead of every approval
+    // needing a Console edit.
+    function isAdmin() {
+      return isApprovedStaff()
+        && get(/databases/$(database)/documents/allowedStaff/$(request.auth.token.email)).data.role == 'admin';
+    }
+
     // Admin-managed allowlist of approved staff emails, keyed by email
-    // address (Console/Firestore Data tab is the only way to add/remove
-    // entries - see docs/Config-Management.md "Staff account provisioning").
-    // A signed-in user may only ever read their OWN entry (to check their
-    // own approval status), never list or write the collection.
+    // address. A signed-in user may only ever read their OWN entry (to
+    // check their own approval status); admins may additionally create
+    // new entries (approving a pending signupRequest) but never list the
+    // roster or update/delete an existing entry from the client -
+    // revoking access or editing roles stays a Console-only action.
     match /allowedStaff/{email} {
       allow get: if request.auth != null && request.auth.token.email == email;
-      allow list, create, update, delete: if false;
+      allow create: if isAdmin();
+      allow list, update, delete: if false;
+    }
+
+    // Created by a signed-in-but-unapproved user for themselves the first
+    // time they're turned away (see public/js/lib/auth.js
+    // recordSignupRequest), so an admin can see and act on it from
+    // /admin/approvals. Only an admin can list the pending queue or
+    // resolve (update) a request; a user may always read their own.
+    match /signupRequests/{email} {
+      allow get: if request.auth != null && (request.auth.token.email == email || isAdmin());
+      allow list: if isAdmin();
+      allow create: if request.auth != null && request.auth.token.email == email;
+      allow update: if isAdmin();
+      allow delete: if false;
     }
 
     match /farmers/{frn} {

@@ -6,7 +6,7 @@ import {
   signOut,
   onAuthStateChanged,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
-import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { auth, db } from './firebase.js';
 
 const googleProvider = new GoogleAuthProvider();
@@ -139,6 +139,52 @@ export function isAuthorizedLocally(uid) {
   return localStorage.getItem(authorizedKey(uid)) === '1';
 }
 
+function adminKey(uid) {
+  return 'admin:' + uid;
+}
+
+/**
+ * Fast, synchronous, offline-safe check mirroring isAuthorizedLocally -
+ * true only for the staff account(s) whose allowedStaff document has
+ * `role: 'admin'` (see docs/Database-Schema.md "Staff accounts"). Gates
+ * the "Approve Requests" button on Home (see home.js) and the
+ * /admin/approvals screen.
+ */
+export function isAdminLocally(uid) {
+  return localStorage.getItem(adminKey(uid)) === '1';
+}
+
+/**
+ * Records (or refreshes) a pending signup request so an admin can see it
+ * on /admin/approvals - called only for a signed-in-but-not-yet-approved
+ * user (see refreshAuthorization below). Best-effort and not awaited by
+ * the caller: this must never block or fail the "Approval Needed" screen
+ * from showing, since recording the request is a nice-to-have, not a
+ * requirement for the user to see their own status.
+ */
+function recordSignupRequest(user) {
+  const ref = doc(db, 'signupRequests', user.email);
+  getDoc(ref)
+    .then((snap) => {
+      const isNew = !snap.exists();
+      return setDoc(
+        ref,
+        {
+          email: user.email,
+          displayName: user.displayName || user.email.split('@')[0],
+          uid: user.uid,
+          status: 'pending',
+          lastAttemptAt: serverTimestamp(),
+          ...(isNew ? { requestedAt: serverTimestamp() } : {}),
+        },
+        { merge: true }
+      );
+    })
+    .catch((err) => {
+      console.warn('[Malaika Honey] Could not record signup request:', err.message);
+    });
+}
+
 /**
  * Confirms whether the signed-in user's email is on the allowedStaff
  * allowlist (see firestore.rules and docs/Config-Management.md "Staff
@@ -154,8 +200,12 @@ export async function refreshAuthorization(user) {
     const snap = await getDoc(doc(db, 'allowedStaff', user.email));
     if (snap.exists()) {
       localStorage.setItem(authorizedKey(user.uid), '1');
+      if (snap.data().role === 'admin') {
+        localStorage.setItem(adminKey(user.uid), '1');
+      }
       return true;
     }
+    recordSignupRequest(user);
     return false;
   } catch {
     return isAuthorizedLocally(user.uid);
