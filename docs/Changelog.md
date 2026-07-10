@@ -6,6 +6,13 @@ All notable changes to this project are documented here. Format loosely follows 
 
 Nothing yet.
 
+## [0.5.3] - 2026-07-10
+
+### Fixed
+- **App didn't run fullscreen when added to the Home Screen on iOS**, showing Safari's own chrome above the header — added the `apple-mobile-web-app-capable`/`apple-mobile-web-app-status-bar-style`/`apple-mobile-web-app-title` meta tags `index.html` was missing (the `manifest.webmanifest`'s `"display": "standalone"` alone isn't enough for older iOS Safari to treat it as a true standalone app).
+- **Visible colour seam behind the status bar**: `.app-header` now pads itself with `env(safe-area-inset-top)` so its white background extends up under the status bar/notch instead of showing the page's cream background there, making the status bar and header read as one continuous surface. Added matching `env(safe-area-inset-bottom)` padding to `#app` so the bottom of the screen isn't crowded against the home-indicator area either.
+- **Logo crowded the sync badge** in the header — `.app-header img.logo` was rendered at a fixed `48px` height regardless of the lockup's wide aspect ratio, leaving little room for the "Synced" badge next to it on narrow phones. Reduced to `38px` and added a small `gap` on `.app-header` for consistent minimum spacing.
+
 ## [0.5.2] - 2026-07-09
 
 ### Added
