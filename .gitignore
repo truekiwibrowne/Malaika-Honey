@@ -9,6 +9,3 @@ ui-debug.log
 .env.local
 ~$*
 .tools/
-
-# Local Netlify folder
-.netlify

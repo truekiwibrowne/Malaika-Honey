@@ -84,6 +84,12 @@ export const icons = {
       svgEl('path', { d: 'M4 20h4l11-11-4-4L4 16z' }),
       svgEl('line', { x1: 13.5, y1: 6.5, x2: 17.5, y2: 10.5 }),
     ]),
+
+  bell: () =>
+    icon([
+      svgEl('path', { d: 'M6 10a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6H4c.5-.5 2-2 2-6z' }),
+      svgEl('path', { d: 'M10 20a2 2 0 0 0 4 0' }),
+    ]),
 };
 
 export function iconEl(name) {

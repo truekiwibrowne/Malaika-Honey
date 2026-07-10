@@ -4,7 +4,37 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
-Nothing yet.
+## [0.6.2] - 2026-07-10
+
+Reconciles this branch with the startup-speed fix (`app.js` lazy auth/screen loading, boot-time spinner) pushed directly to `main` while this PR was open — no functional change beyond the version/cache-name bump needed to keep the two independently-numbered `0.5.3` releases straight (see below).
+
+## [0.6.1] - 2026-07-10
+
+### Fixed
+- **Approving a signup request failed with "Missing or insufficient permissions"** for any admin approving someone *other than themselves* (i.e. every real case) — `adminApprovals.js`'s `approveRequest()` reads the requester's own `allowedStaff` doc first (added in 0.5.2, to check whether it already exists before deciding create-vs-skip), but `firestore.rules` only ever allowed a user to `get` their *own* `allowedStaff` document, not an admin reading someone else's. Fixed by allowing `get` for `request.auth.token.email == email || isAdmin()`, the same self-or-admin pattern already used for `signupRequests`. This is a live production bug (unrelated to the fullscreen/push-notification work in this same PR) — deploy `firestore.rules` as soon as possible: `firebase deploy --only firestore:rules`.
+
+### Removed
+- **Netlify support.** Firebase Hosting is now the only deploy target — deleted `netlify.toml` and the Netlify GitHub integration/preview deploys, removed Netlify from `docs/Release-Management.md`/`Config-Management.md`/`System-Architecture.md`/`README.md`/`Backlog.md`, and dropped the `.netlify` entry from `.gitignore`. Production has always been `https://malaikahoney-78577.web.app/` (Firebase Hosting) regardless; this just removes the now-unused second option so PRs stop getting Netlify preview-deploy noise.
+
+## [0.6.0] - 2026-07-10
+
+Admin push notifications — built and functionally complete, but **inert until deployed** (see [[Push-Notifications]] for the one-time Blaze-plan/VAPID-key setup this depends on; no behavior change for any current user until then).
+
+### Added
+- **`functions/`**: new Cloud Functions codebase (`notifyAdminsOnSignupRequest`, `notifyAdminsOnPurchase`, `notifyAdminsOnFarmerRegistered`) — Firestore `onDocumentCreated` triggers that push a notification to every admin's registered device via Firebase Cloud Messaging whenever a sign-in request, purchase, or new farmer is created. Prunes dead tokens automatically. Not deployed by the existing `firebase deploy --only hosting` release process, and requires the Blaze plan.
+- **`public/js/lib/push.js`**: client-side FCM registration — requests notification permission, saves the device's token onto the signed-in admin's own `allowedStaff/{email}.fcmTokens`, and reuses the existing `sw.js` service worker registration rather than adding a second one.
+- **"Enable Notifications" toggle on Home** (admin-only, `home.js`), hidden entirely unless `isPushConfigured()`/`isPushSupported()` both pass (real `vapidKey` configured, and the platform actually supports Web Push — notably excludes iOS Safari outside an installed home-screen PWA).
+- **`public/sw.js`**: `push` and `notificationclick` handlers — shows the incoming notification and, on tap, focuses/opens the app to the relevant screen (Approve Requests, or a farmer's profile).
+- **`vapidKey`** in `public/js/config/firebase.config.js` (currently `''`) — the single value that flips this feature from inert to live once filled in.
+- **`firestore.rules`**: a signed-in user may now `update` their own `allowedStaff` document, but only the `fcmTokens` field — everything else (`role`, `addedAt`) stays immutable from the client, so this can't be used for privilege escalation.
+- **`docs/Push-Notifications.md`**: full setup checklist and architecture notes for this feature.
+
+## [0.5.4] - 2026-07-10
+
+### Fixed
+- **App didn't run fullscreen when added to the Home Screen on iOS**, showing Safari's own chrome above the header — added the `apple-mobile-web-app-capable`/`apple-mobile-web-app-status-bar-style`/`apple-mobile-web-app-title` meta tags `index.html` was missing (the `manifest.webmanifest`'s `"display": "standalone"` alone isn't enough for older iOS Safari to treat it as a true standalone app).
+- **Visible colour seam behind the status bar**: `.app-header` now pads itself with `env(safe-area-inset-top)` so its white background extends up under the status bar/notch instead of showing the page's cream background there, making the status bar and header read as one continuous surface. Added matching `env(safe-area-inset-bottom)` padding to `#app` so the bottom of the screen isn't crowded against the home-indicator area either.
+- **Logo crowded the sync badge** in the header — `.app-header img.logo` was rendered at a fixed `48px` height regardless of the lockup's wide aspect ratio, leaving little room for the "Synced" badge next to it on narrow phones. Reduced to `38px` and added a small `gap` on `.app-header` for consistent minimum spacing.
 
 ## [0.5.3] - 2026-07-10
 

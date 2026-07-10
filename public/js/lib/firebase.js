@@ -13,7 +13,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import { firebaseConfig } from '../config/firebase.config.js';
 
-const app = initializeApp(firebaseConfig);
+export const app = initializeApp(firebaseConfig);
 
 // Offline-first: cache reads/writes locally and sync automatically when a
 // connection is available (see docs/System-Architecture.md "Offline

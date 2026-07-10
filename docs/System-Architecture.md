@@ -43,6 +43,8 @@ Malaika Honey needs a Farmer Relationship Manager (FRM): a system that registers
 │  Firebase Authentication      │  ← staff accounts
 │  Firebase Hosting             │  ← serves the static app
 │  Firestore Security Rules     │  ← require request.auth != null
+│  Cloud Functions (not yet     │  ← FCM push to admins, see
+│  deployed - see Push-Notif.)  │    [[Push-Notifications]]
 └───────────────┬──────────────┘
                 │
                 ▼
@@ -57,9 +59,9 @@ Malaika Honey needs a Farmer Relationship Manager (FRM): a system that registers
 
 - **Static HTML/CSS/JS, no build step, no framework runtime dependency.** The brief calls for "simple." A framework (React/Vue) adds a build pipeline and bundle weight that buys nothing for 3 screens and increases the barrier to a second developer picking this up later. The app is structured as a single-page shell (`index.html`) with plain ES modules per screen, so it stays simple to read but doesn't sprawl into unmaintainable spaghetti — see `public/js/screens/`.
 - **Firebase Firestore, not a custom backend.** Firestore's client SDK has **offline persistence built in** (local IndexedDB cache + automatic write queue + sync on reconnect) — this is exactly the offline requirement, for free, without writing a custom sync engine. A custom Node/Express + Postgres backend would require building offline queuing and conflict resolution from scratch, which is a much bigger and riskier undertaking for a small team.
-- **No server-side code (no Cloud Functions) in v1.** FRN generation is entirely client-side (device code + local sequence) and lifetime-stat totals are updated via Firestore `increment()` FieldValues from the client (see [[Database-Schema]]) — deliberately **not** Firestore transactions, since transactions fail immediately when offline instead of queuing, which would break the offline requirement above. This keeps hosting free-tier-friendly and avoids a deployment target beyond static hosting. Cloud Functions can be introduced later (e.g. for SMS receipts, scheduled M&E exports) without changing the client architecture.
+- **No server-side code driving the core field workflows.** FRN generation is entirely client-side (device code + local sequence) and lifetime-stat totals are updated via Firestore `increment()` FieldValues from the client (see [[Database-Schema]]) — deliberately **not** Firestore transactions, since transactions fail immediately when offline instead of queuing, which would break the offline requirement above. This keeps the field app itself free-tier-friendly and independent of any backend being up. The one exception is push notifications (see [[Push-Notifications]]): `functions/` holds Cloud Functions that send FCM pushes to admins on new sign-in requests/purchases/farmers — purely a notify-after-the-fact side effect, not on the critical path of any field-staff action, and not yet deployed (requires the Blaze plan — see [[Push-Notifications]] for the one-time setup).
 - **Firebase Authentication (phone + password, primary; Google Sign-In, hidden), not a custom login system.** Phone+password is the primary method since some staff don't have a Google account — it still uses Firebase Auth's built-in email/password provider under the hood (via a synthetic email derived from the phone number), so no session management, password resets, or custom login backend needed to be built from scratch. Google Sign-In remains fully implemented but hidden behind a single flag (`GOOGLE_SIGNIN_ENABLED`), restorable without a rewrite. Either way, individual accounts give per-record accountability (`registeredBy`/`recordedBy`), and since self-service account creation is inherently open (anyone can create a phone account, or has a Google account), real data access is additionally gated by an admin-managed `allowedStaff` allowlist checked server-side in `firestore.rules` — sign-in and authorization are deliberately two separate steps (see [[Database-Schema]] "Staff accounts"). The SDK's local session persistence is what makes "sign in once online, then work offline indefinitely" possible, and the authorization result is cached the same way so a returning approved staff member is never blocked offline.
-- **Firebase Hosting or Netlify for the static site.** Both are equivalent for this app (it's just static files); Firebase Hosting is the natural default since the database is already on Firebase, but Netlify remains a valid drop-in alternative (see [[Release-Management]]) since there's no server-side coupling.
+- **Firebase Hosting for the static site.** The natural default since the database is already on Firebase — one project, one dashboard, no second host to keep in sync (see [[Release-Management]]).
 - **GitHub for source control**, deploys triggered from the `main` branch (see [[Release-Management]]).
 
 ## Two applications, one database
@@ -99,5 +101,5 @@ Because every record is keyed by FRN and timestamped, the admin app (or even a s
 ## Non-goals for v1
 
 - Role-based permissions — every signed-in staff account currently has identical Firestore access (tracked in [[Backlog]] 2.12).
-- No push notifications, SMS, or payments integration.
+- No SMS or payments integration. (Push notifications exist but aren't yet active — see [[Push-Notifications]].)
 - No native mobile app — the PWA approach is intentional to avoid app-store distribution friction in rural Uganda.

@@ -28,4 +28,4 @@ This serves the app (Hosting emulator) and a local Firestore instance together â
 
 ## Deploying
 
-See [Release Management](docs/Release-Management.md) for Firebase Hosting and Netlify deploy steps.
+See [Release Management](docs/Release-Management.md) for Firebase Hosting deploy steps.

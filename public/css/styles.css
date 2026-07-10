@@ -52,20 +52,23 @@ html, body {
   flex-direction: column;
   box-shadow: 0 0 24px rgba(0,0,0,0.06);
   overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .app-header {
   flex: none;
   display: flex;
   align-items: center;
+  gap: 10px;
   padding: 14px 16px;
+  padding-top: calc(14px + env(safe-area-inset-top));
   background: var(--color-bg);
   border-bottom: 1px solid var(--color-border);
   z-index: 10;
 }
 
 .app-header img.logo {
-  height: 48px;
+  height: 38px;
   width: auto;
   display: block;
 }

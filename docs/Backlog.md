@@ -18,7 +18,7 @@ This backlog is a living document — update it as priorities shift. See [[Chang
 | 1.8 | Printable farmer ID card (FRN + details) | ✅ |
 | 1.9 | Offline-first behaviour (Firestore persistence) | ✅ |
 | 1.10 | Local testing via Firebase emulator | ✅ |
-| 1.11 | Deploy field app to Firebase Hosting / Netlify | 📋 |
+| 1.11 | Deploy field app to Firebase Hosting | 📋 |
 
 ## Milestone 2 — Hardening for real field use
 

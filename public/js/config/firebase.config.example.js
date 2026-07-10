@@ -13,3 +13,8 @@ export const firebaseConfig = {
   messagingSenderId: 'REPLACE_ME',
   appId: 'REPLACE_ME',
 };
+
+// See docs/Push-Notifications.md - generate from Firebase Console ->
+// Project settings -> Cloud Messaging -> Web Push certificates. Leave blank
+// to keep push notifications inert.
+export const vapidKey = 'REPLACE_ME';
