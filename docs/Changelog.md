@@ -4,7 +4,8 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
-Nothing yet.
+### Removed
+- **Netlify support.** Firebase Hosting is now the only deploy target — deleted `netlify.toml` and the Netlify GitHub integration/preview deploys, removed Netlify from `docs/Release-Management.md`/`Config-Management.md`/`System-Architecture.md`/`README.md`/`Backlog.md`, and dropped the `.netlify` entry from `.gitignore`. Production has always been `https://malaikahoney-78577.web.app/` (Firebase Hosting) regardless; this just removes the now-unused second option so PRs stop getting Netlify preview-deploy noise.
 
 ## [0.6.0] - 2026-07-10
 
