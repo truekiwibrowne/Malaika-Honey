@@ -6,6 +6,15 @@ All notable changes to this project are documented here. Format loosely follows 
 
 Nothing yet.
 
+## [0.5.3] - 2026-07-10
+
+Startup speed fix: opening the app took as long as ~8 seconds with nothing visible on screen. Three compounding causes, all fixed:
+
+### Fixed
+- **App open no longer blocks on a live network call for a staff member already approved on this device.** `app.js`'s `start()` used to always `await refreshAuthorization(user)` (a live Firestore `getDoc`) before the router ran its first route or rendered anything — on every single app open, not just the first. This directly contradicted the documented QA expectation ("no repeated approval check hitting the network," see [[QA-Testing]]) and was the single biggest contributor to the delay, especially on a slow mobile connection. Now this network round trip is only awaited the first time a device confirms a given staff member; on every subsequent open it's skipped up front (the already-cached local flag is used instead) and refreshed quietly in the background after the UI is already showing, so a since-revoked account is still caught eventually without holding up the render.
+- **Non-landing screens are no longer fetched and parsed before the app can show anything.** `app.js` used to `import` all 12 screens (including Buy Produce, Reconcile, Farmer Card, etc.) eagerly at the top of the file, so a cold open had to download and evaluate the whole app before routing to even the Login or Home screen. Every screen except Login and Home (the only two possible landing screens) is now fetched via a dynamic `import()` the first time its route is visited, shrinking the initial module graph substantially. Each screen is still precached by the service worker after first visit, so this only costs a network round trip once per device.
+- **Blank white screen for the entire load.** `index.html` now paints the header logo and a loading spinner immediately from static markup, before `js/app.js` has even been fetched, instead of leaving `#app-header`/`#screen-root` empty until the app finished booting. Also added `<link rel="preconnect">` for the Firebase SDK CDN and Auth/Firestore API origins, and `<link rel="modulepreload">` for the app's own critical-path modules, so those connections/fetches start in parallel with HTML parsing instead of only being discovered after `app.js` runs.
+
 ## [0.5.2] - 2026-07-09
 
 ### Added

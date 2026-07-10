@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.5.2';
+export const APP_VERSION = '0.5.3';
 
 // Phone + password is the primary sign-in method for now since some staff
 // don't have a Google account; Google Sign-In is kept working in the
