@@ -50,6 +50,13 @@ const GRADES_FALLBACK = [
   { id: 'C', label: 'C', order: 3 },
 ];
 
+// Real office names are the client's own data - there's nothing
+// meaningful to hardcode beyond a single placeholder, just so the Login
+// picker (see public/js/screens/login.js) is never truly empty before
+// an admin adds real offices (see docs/Config-Management.md "Field
+// office provisioning").
+const FIELD_OFFICES_FALLBACK = [{ id: 'main', label: 'Main Office', order: 1 }];
+
 const PAYMENT_METHODS_FALLBACK = [
   { id: 'cash', label: 'Cash', order: 1 },
   { id: 'mobileMoney', label: 'Mobile Money', order: 2 },
@@ -113,6 +120,13 @@ const NEW_FARMER_FIELDS_FALLBACK = [
   { id: 'usesChemicals', section: 'Production Details', label: 'Uses chemicals/pesticides?', type: 'toggle', order: 12, required: false, active: true },
   { id: 'wantsTraining', section: 'Production Details', label: 'Interested in training?', type: 'toggle', order: 13, required: false, active: true },
 ];
+
+/**
+ * Unlike every other reference collection, this one must work with NO
+ * sign-in at all (see firestore.rules) - it's read from the Login
+ * screen before anyone is authenticated, to populate the office picker.
+ */
+export const getFieldOffices = () => getOptionList('fieldOffices', FIELD_OFFICES_FALLBACK);
 
 export const getProducts = () => getOptionList('products', PRODUCTS_FALLBACK);
 export const getGrades = () => getOptionList('grades', GRADES_FALLBACK);

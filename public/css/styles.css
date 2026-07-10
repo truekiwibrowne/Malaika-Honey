@@ -52,6 +52,16 @@ html, body {
   flex-direction: column;
   box-shadow: 0 0 24px rgba(0,0,0,0.06);
   overflow: hidden;
+  /* Only non-zero on an installed, notched-device PWA (requires
+     viewport-fit=cover in index.html, already set) - insets the whole
+     app below the status bar / above the home indicator instead of
+     content sitting underneath them, now that index.html's
+     apple-mobile-web-app-status-bar-style is black-translucent. Applied
+     here (not on .app-header alone) so the safe-area area reads as the
+     same continuous background as the header, whether or not the
+     offline banner happens to be showing above it. */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .app-header {

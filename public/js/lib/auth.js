@@ -22,6 +22,7 @@ const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 const PHONE_EMAIL_DOMAIN = 'staff.malaikahoney.local';
+const OFFICE_EMAIL_DOMAIN = 'office.malaikahoney.local';
 
 /**
  * Turns a staff-entered phone number into the synthetic email Firebase
@@ -33,6 +34,18 @@ const PHONE_EMAIL_DOMAIN = 'staff.malaikahoney.local';
 export function phoneToEmail(phone) {
   const digits = phone.replace(/\D/g, '');
   return digits + '@' + PHONE_EMAIL_DOMAIN;
+}
+
+/**
+ * Same idea as phoneToEmail, but for the primary sign-in method: one
+ * shared account per field office, provisioned by an admin directly in
+ * Firebase Console rather than self-service (see docs/Config-Management.md
+ * "Field office provisioning") - officeId is the fieldOffices document id
+ * chosen from the Login screen's dropdown (see referenceData.js
+ * getFieldOffices).
+ */
+export function officeIdToEmail(officeId) {
+  return officeId + '@' + OFFICE_EMAIL_DOMAIN;
 }
 
 function friendlyAuthError(err) {
@@ -49,7 +62,7 @@ function friendlyAuthError(err) {
     case 'auth/invalid-credential':
     case 'auth/wrong-password':
     case 'auth/user-not-found':
-      return 'Incorrect phone number or password.';
+      return 'Wrong code.';
     case 'auth/email-already-in-use':
       return 'An account already exists for this phone number. Use Sign In instead.';
     case 'auth/weak-password':
@@ -62,8 +75,26 @@ function friendlyAuthError(err) {
 }
 
 /**
- * Returning staff member: phone + their existing password. See
- * createAccountWithPhone for first-time sign-up.
+ * Primary sign-in method: one shared code per field office. The office
+ * account itself is provisioned entirely in Firebase Console (no
+ * self-service "create account" here, unlike signInWithPhone/
+ * createAccountWithPhone below) - see docs/Config-Management.md.
+ */
+export async function signInWithOfficeCode(officeId, code) {
+  try {
+    const credential = await signInWithEmailAndPassword(auth, officeIdToEmail(officeId), code);
+    return credential.user;
+  } catch (err) {
+    throw new Error(friendlyAuthError(err));
+  }
+}
+
+/**
+ * Kept working but hidden behind PHONE_SIGNIN_ENABLED (constants.js) now
+ * that office+code (above) is the primary method - restorable with no
+ * rewrite by flipping that flag back on. Returning staff member: phone +
+ * their existing password. See createAccountWithPhone for first-time
+ * sign-up.
  */
 export async function signInWithPhone(phone, password) {
   try {
@@ -180,33 +211,46 @@ export function currentDisplayName() {
   return user.email ? user.email.split('@')[0] : user.uid;
 }
 
+const SYNTHETIC_EMAIL_DOMAINS = [OFFICE_EMAIL_DOMAIN, PHONE_EMAIL_DOMAIN];
+
 /**
- * Human-facing identity string for a signed-in user - a phone-based
- * account's real email is a synthetic address (see phoneToEmail) that
- * would only confuse staff if shown as-is, so this strips it back down
- * to the phone number they actually typed. Google accounts just show
- * their real email.
+ * Strips a known synthetic domain (office or phone account - see
+ * officeIdToEmail/phoneToEmail) back down to just the office id/phone
+ * number, so internal-only addresses are never shown to staff as-is.
+ * Returns null for a real address (e.g. a Google account), which isn't
+ * synthetic and should just be shown in full.
  */
-export function identityLabel(user) {
-  if (!user) return 'your account';
-  if (user.email && user.email.endsWith('@' + PHONE_EMAIL_DOMAIN)) {
-    return user.email.split('@')[0];
-  }
-  return user.email || user.uid;
+function stripSyntheticDomain(email) {
+  if (!email) return null;
+  const domain = SYNTHETIC_EMAIL_DOMAINS.find((d) => email.endsWith('@' + d));
+  return domain ? email.split('@')[0] : null;
 }
 
 /**
- * Same idea as identityLabel, but for the raw email string stored on a
- * signupRequests/allowedStaff document (used by adminApprovals.js) rather
- * than a live Firebase user object - returns the phone number for a
- * synthetic phone-account email, or null if `email` is a real address.
+ * Human-facing identity string for a signed-in user - an office or
+ * phone-based account's real email is a synthetic address that would
+ * only confuse staff if shown as-is, so this strips it back down to the
+ * office id/phone number. Google accounts just show their real email.
  */
-export function phoneFromSyntheticEmail(email) {
-  if (email && email.endsWith('@' + PHONE_EMAIL_DOMAIN)) {
-    return email.split('@')[0];
-  }
+export function identityLabel(user) {
+  if (!user) return 'your account';
+  return stripSyntheticDomain(user.email) || user.email || user.uid;
+}
+
+/**
+ * Same idea as stripSyntheticDomain, but also reports which kind of
+ * account it is - used by adminApprovals.js to label a request's
+ * identity correctly ("Office" vs "Phone" vs "Email") from the raw email
+ * string stored on a signupRequests/allowedStaff document, rather than a
+ * live Firebase user object.
+ */
+export function syntheticEmailKind(email) {
+  if (email && email.endsWith('@' + OFFICE_EMAIL_DOMAIN)) return 'office';
+  if (email && email.endsWith('@' + PHONE_EMAIL_DOMAIN)) return 'phone';
   return null;
 }
+
+export { stripSyntheticDomain };
 
 function tutorialSeenKey(uid) {
   return 'tutorialSeen:' + uid;

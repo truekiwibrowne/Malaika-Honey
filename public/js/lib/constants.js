@@ -1,9 +1,12 @@
-export const APP_VERSION = '0.5.2';
+export const APP_VERSION = '0.6.0';
 
-// Phone + password is the primary sign-in method for now since some staff
-// don't have a Google account; Google Sign-In is kept working in the
-// codebase (not deleted) but hidden from the login screen, in case it's
-// wanted again later - flip this back to true to restore it.
+// One shared code per field office is the primary sign-in method now
+// (simpler for staff who don't read/speak English well - see
+// docs/Database-Schema.md "Staff accounts"). Phone+password and Google
+// Sign-In are both kept fully working in the codebase (not deleted) but
+// hidden from the login screen - flip either flag back to true to
+// restore it, with no rewrite needed.
+export const PHONE_SIGNIN_ENABLED = false;
 export const GOOGLE_SIGNIN_ENABLED = false;
 
 export const PRODUCTS = [

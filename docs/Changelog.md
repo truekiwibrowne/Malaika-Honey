@@ -6,6 +6,20 @@ All notable changes to this project are documented here. Format loosely follows 
 
 Nothing yet.
 
+## [0.6.0] - 2026-07-10
+
+Office+code sign-in as the primary method, first-load performance, and iOS fullscreen fix.
+
+### Added
+- **Office + code sign-in**: one shared login per field office (`signInWithOfficeCode` in `public/js/lib/auth.js`) — pick the office from a dropdown, type its code. Unlike every prior sign-in method, this is admin-provisioned rather than self-service (see `docs/Config-Management.md` "Field office provisioning"); the office's code is literally its Firebase Auth password. New `fieldOffices/{officeId}` Firestore collection (`{ label, order, active }`, same pattern as `products`/`grades`/etc.) powers the dropdown — the one collection in the whole schema readable with no sign-in at all, since the picker has to render before anyone is authenticated.
+- **`PHONE_SIGNIN_ENABLED`** flag (`public/js/lib/constants.js`, `false` by default): phone+password is now hidden the same way Google already was, both fully retained in the code and restorable by flipping a flag.
+- Minimal-text redesign of Login and "Approval Needed" (`notAuthorized.js`) — long explanatory paragraphs removed, short labels/identity only, for staff who don't read/speak English well.
+- Lazy-loaded screen modules: `app.js` now dynamically `import()`s each screen on demand inside its route handler instead of statically importing all 12 up front. First-load JS requests before Login renders drop from ~26 to about a dozen — this was the main cause of an ~8 second first load on a real mobile connection. A `<link rel="preconnect">` to Firebase's CDN was also added.
+- iOS fullscreen: `apple-mobile-web-app-capable`/`apple-mobile-web-app-status-bar-style` (`black-translucent`) meta tags, plus `env(safe-area-inset-top/bottom)` padding on `#app` in `styles.css` — fixes a colored seam between the status bar and the app on a Home Screen install (the manifest's `"display": "standalone"` alone isn't enough on iOS).
+
+### Fixed
+- **Regression in `adminApprovals.js`'s `approveRequest`, shipped in 0.5.2 and caught while testing this batch:** the "does this allowedStaff document already exist" check added in 0.5.2 used `getDoc()` on the *target* account's document — which Firestore rules only allow for that account itself, not an admin checking someone else's. This silently broke approving anyone who wasn't the signed-in admin's own account (the 0.5.2 test had accidentally self-approved, masking it). Fixed by removing the pre-check entirely: attempt the `create` and treat a `permission-denied` result as "already exists, nothing to grant" — Firestore's rules already guarantee that's the only reason a `create`-permitted admin's write would fail here.
+
 ## [0.5.2] - 2026-07-09
 
 ### Added

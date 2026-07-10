@@ -1,6 +1,6 @@
 import './lib/firebase.js';
 import { addRoute, startRouter } from './router.js';
-import { initOfflineBanner, toast } from './lib/ui.js';
+import { initOfflineBanner, toast, el, mount } from './lib/ui.js';
 import {
   waitForAuthReady,
   onAuthChange,
@@ -12,36 +12,94 @@ import {
 } from './lib/auth.js';
 import { renderHeader } from './lib/header.js';
 
-import { renderLogin } from './screens/login.js';
-import { renderNotAuthorized } from './screens/notAuthorized.js';
-import { renderTutorial } from './screens/tutorial.js';
-import { renderHome } from './screens/home.js';
-import { renderNewFarmer, renderNewFarmerSuccess } from './screens/newFarmer.js';
-import { renderFindFarmer } from './screens/findFarmer.js';
-import { renderFarmerProfile } from './screens/farmerProfile.js';
-import { renderBuyProduce, renderBuyProduceEntry, renderBuyProduceSuccess } from './screens/buyProduce.js';
-import { renderHistory } from './screens/history.js';
-import { renderCard } from './screens/card.js';
-import { renderReconcile } from './screens/reconcile.js';
-import { renderAdminApprovals } from './screens/adminApprovals.js';
-
 const root = document.getElementById('screen-root');
 
-addRoute('/login', () => renderLogin(root), { public: true, headerMode: 'login' });
-addRoute('/not-authorized', () => renderNotAuthorized(root), { headerMode: 'sub', backTo: '#/login', skipAuthorizationCheck: true });
-addRoute('/tutorial', () => renderTutorial(root), { headerMode: 'sub', backTo: '#/home' });
-addRoute('/home', () => renderHome(root), { headerMode: 'home' });
-addRoute('/reconcile', () => renderReconcile(root), { headerMode: 'sub', backTo: '#/home' });
-addRoute('/admin/approvals', () => renderAdminApprovals(root), { headerMode: 'sub', backTo: '#/home' });
-addRoute('/new-farmer', () => renderNewFarmer(root), { headerMode: 'sub', backTo: '#/home' });
-addRoute('/new-farmer/success/:frn', (params) => renderNewFarmerSuccess(root, params), { headerMode: 'sub', backTo: '#/home' });
-addRoute('/find-farmer', () => renderFindFarmer(root), { headerMode: 'sub', backTo: '#/home' });
-addRoute('/farmer/:frn', (params) => renderFarmerProfile(root, params), { headerMode: 'sub', backTo: '#/find-farmer' });
-addRoute('/buy', () => renderBuyProduceEntry(root), { headerMode: 'sub', backTo: '#/home' });
-addRoute('/buy/:frn', (params) => renderBuyProduce(root, params), { headerMode: 'sub', backTo: '#/buy' });
-addRoute('/buy/:frn/success/:purchaseId', (params) => renderBuyProduceSuccess(root, params), { headerMode: 'sub', backTo: '#/home' });
-addRoute('/history/:frn', (params) => renderHistory(root, params), { headerMode: 'sub', backTo: (params) => '#/farmer/' + params.frn });
-addRoute('/card/:frn', (params) => renderCard(root, params), { headerMode: 'sub', backTo: (params) => '#/farmer/' + params.frn });
+/**
+ * Every screen module is imported lazily, on demand, right here - not
+ * eagerly at the top of this file - so a first, uncached load only ever
+ * fetches+parses the ONE screen actually being visited (plus the small
+ * shared libs above) instead of all of them. This was the single biggest
+ * factor in a slow first load on a real mobile connection: this file
+ * used to statically import all 12 screens up front, meaning every
+ * screen's JS (and whatever it in turn imports, e.g. db.js,
+ * referenceData.js) had to load before even the Login screen could
+ * render. The dynamic import() below is native ES modules, no bundler
+ * needed - consistent with this app's "no build step" design (see
+ * docs/System-Architecture.md). public/sw.js's precache list is
+ * unaffected - it still warms every screen into the offline cache
+ * eventually, this only changes what blocks the very first paint.
+ */
+function lazyRoute(loader, render) {
+  return async (params, query) => {
+    mount(root, el('p', { class: 'hint' }, 'Loading…'));
+    const mod = await loader();
+    render(mod, params, query);
+  };
+}
+
+addRoute('/login', lazyRoute(() => import('./screens/login.js'), (m) => m.renderLogin(root)), {
+  public: true,
+  headerMode: 'login',
+});
+addRoute('/not-authorized', lazyRoute(() => import('./screens/notAuthorized.js'), (m) => m.renderNotAuthorized(root)), {
+  headerMode: 'sub',
+  backTo: '#/login',
+  skipAuthorizationCheck: true,
+});
+addRoute('/tutorial', lazyRoute(() => import('./screens/tutorial.js'), (m) => m.renderTutorial(root)), {
+  headerMode: 'sub',
+  backTo: '#/home',
+});
+addRoute('/home', lazyRoute(() => import('./screens/home.js'), (m) => m.renderHome(root)), { headerMode: 'home' });
+addRoute('/reconcile', lazyRoute(() => import('./screens/reconcile.js'), (m) => m.renderReconcile(root)), {
+  headerMode: 'sub',
+  backTo: '#/home',
+});
+addRoute('/admin/approvals', lazyRoute(() => import('./screens/adminApprovals.js'), (m) => m.renderAdminApprovals(root)), {
+  headerMode: 'sub',
+  backTo: '#/home',
+});
+addRoute('/new-farmer', lazyRoute(() => import('./screens/newFarmer.js'), (m) => m.renderNewFarmer(root)), {
+  headerMode: 'sub',
+  backTo: '#/home',
+});
+addRoute(
+  '/new-farmer/success/:frn',
+  lazyRoute(() => import('./screens/newFarmer.js'), (m, params) => m.renderNewFarmerSuccess(root, params)),
+  { headerMode: 'sub', backTo: '#/home' }
+);
+addRoute('/find-farmer', lazyRoute(() => import('./screens/findFarmer.js'), (m) => m.renderFindFarmer(root)), {
+  headerMode: 'sub',
+  backTo: '#/home',
+});
+addRoute(
+  '/farmer/:frn',
+  lazyRoute(() => import('./screens/farmerProfile.js'), (m, params) => m.renderFarmerProfile(root, params)),
+  { headerMode: 'sub', backTo: '#/find-farmer' }
+);
+addRoute('/buy', lazyRoute(() => import('./screens/buyProduce.js'), (m) => m.renderBuyProduceEntry(root)), {
+  headerMode: 'sub',
+  backTo: '#/home',
+});
+addRoute(
+  '/buy/:frn',
+  lazyRoute(() => import('./screens/buyProduce.js'), (m, params) => m.renderBuyProduce(root, params)),
+  { headerMode: 'sub', backTo: '#/buy' }
+);
+addRoute(
+  '/buy/:frn/success/:purchaseId',
+  lazyRoute(() => import('./screens/buyProduce.js'), (m, params) => m.renderBuyProduceSuccess(root, params)),
+  { headerMode: 'sub', backTo: '#/home' }
+);
+addRoute(
+  '/history/:frn',
+  lazyRoute(() => import('./screens/history.js'), (m, params) => m.renderHistory(root, params)),
+  { headerMode: 'sub', backTo: (params) => '#/farmer/' + params.frn }
+);
+addRoute('/card/:frn', lazyRoute(() => import('./screens/card.js'), (m, params) => m.renderCard(root, params)), {
+  headerMode: 'sub',
+  backTo: (params) => '#/farmer/' + params.frn,
+});
 
 initOfflineBanner();
 

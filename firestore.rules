@@ -119,6 +119,17 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Deliberately the ONE collection readable with no sign-in at all -
+    // it powers the office picker on the Login screen itself, which by
+    // definition has to render before anyone is authenticated. Contains
+    // nothing but office display names/ordering; never put anything more
+    // sensitive in here. See docs/Database-Schema.md "fieldOffices" and
+    // docs/Risk-Register.md.
+    match /fieldOffices/{officeId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

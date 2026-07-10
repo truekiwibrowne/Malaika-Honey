@@ -2,7 +2,6 @@ import {
   collection,
   getDocs,
   getDocsFromCache,
-  getDoc,
   doc,
   setDoc,
   updateDoc,
@@ -11,7 +10,7 @@ import {
 import { db } from '../lib/firebase.js';
 import { el, mount, toast } from '../lib/ui.js';
 import { formatDate } from '../lib/constants.js';
-import { currentDisplayName, phoneFromSyntheticEmail } from '../lib/auth.js';
+import { currentDisplayName, syntheticEmailKind, stripSyntheticDomain } from '../lib/auth.js';
 import { iconEl } from '../lib/icons.js';
 
 /**
@@ -37,15 +36,20 @@ async function getPendingRequests() {
  * accounts"). If this email already has a document - e.g. an admin
  * bootstrapped directly in Console per docs/Config-Management.md, who
  * still has a stale pending request left over from their very first
- * sign-in attempt - a plain setDoc would be an "update" against an
- * existing document and get rejected. Skip the write entirely in that
- * case; they already have access, so there's nothing to grant.
+ * sign-in attempt - a plain setDoc is an "update" against an existing
+ * document and gets rejected. There's no way to check existence first
+ * either: allowedStaff's `get` rule only allows reading your OWN
+ * document, not another account's, even as an admin. So just attempt the
+ * write and treat a permission-denied specifically here as "already
+ * exists, nothing to grant" rather than a real failure - isAdmin() is
+ * already required to reach this function at all, so a create-rule
+ * rejection can only mean the document was already there.
  */
 async function approveRequest(request) {
-  const staffRef = doc(db, 'allowedStaff', request.email);
-  const existing = await getDoc(staffRef);
-  if (!existing.exists()) {
-    await setDoc(staffRef, { addedAt: serverTimestamp() });
+  try {
+    await setDoc(doc(db, 'allowedStaff', request.email), { addedAt: serverTimestamp() });
+  } catch (err) {
+    if (err.code !== 'permission-denied') throw err;
   }
   await updateDoc(doc(db, 'signupRequests', request.id), {
     status: 'approved',
@@ -65,6 +69,10 @@ async function rejectRequest(request) {
 function renderRequestRow(request, onResolved) {
   const approveBtn = el('button', { type: 'button', class: 'btn btn-green' }, [iconEl('check'), ' Approve']);
   const rejectBtn = el('button', { type: 'button', class: 'btn btn-outline' }, 'Reject');
+
+  const kind = syntheticEmailKind(request.email);
+  const identityLabelText = kind === 'office' ? 'Office' : kind === 'phone' ? 'Phone' : 'Email';
+  const identityValue = kind ? stripSyntheticDomain(request.email) : request.email;
 
   approveBtn.addEventListener('click', async () => {
     approveBtn.disabled = true;
@@ -103,8 +111,8 @@ function renderRequestRow(request, onResolved) {
       el('span', {}, request.displayName),
     ]),
     el('div', { class: 'history-item', style: 'border:none;background:none;padding:4px 0' }, [
-      el('span', { class: 'sub' }, phoneFromSyntheticEmail(request.email) ? 'Phone' : 'Email'),
-      el('span', {}, phoneFromSyntheticEmail(request.email) || request.email),
+      el('span', { class: 'sub' }, identityLabelText),
+      el('span', {}, identityValue),
     ]),
     el('div', { class: 'history-item', style: 'border:none;background:none;padding:4px 0' }, [
       el('span', { class: 'sub' }, 'Requested'),

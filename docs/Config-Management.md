@@ -63,27 +63,30 @@ There are currently no server-side secrets (no Cloud Functions, no third-party A
 
 See [[Release-Management]] for the full branching and deployment workflow.
 
-## Staff account provisioning
+## Field office provisioning (primary sign-in method)
 
-Staff sign themselves in — with **phone number + a self-chosen password** (the primary method today, since not everyone has a Google account) or, if `GOOGLE_SIGNIN_ENABLED` in `public/js/lib/constants.js` is flipped back to `true`, with Google — self-service, no Console step needed just to attempt sign-in. Either way, an account only gets real access once its email (real, for Google, or the synthetic phone-based one — see [[Database-Schema]] `allowedStaff`) is approved on the `allowedStaff` allowlist (see [[Database-Schema]] "Staff accounts"). There are two ways to approve someone — an in-app flow for day-to-day use, and a Console fallback for bootstrapping the very first admin (or if the in-app flow is ever unavailable).
+One shared code per office is how staff sign in today (see [[Database-Schema]] "Staff accounts"). Unlike every other sign-in method this app has had, this is **not self-service** — an admin sets both up ahead of time:
 
-### In-app (normal way, once at least one admin exists)
+1. Firebase Console → **Firestore Database** → `fieldOffices` collection → **Add document**. Document ID: a short slug (e.g. `kampala`); fields: `label` (string, e.g. "Kampala Office"), `order` (number), `active` (boolean, `true`). This is what appears in the Login screen's office dropdown — remember it's the one collection anyone can read with no sign-in at all, so keep it to just names/ordering (see [[Risk-Register]]).
+2. Firebase Console → **Authentication** → **Add user**. Email: `{officeId}@office.malaikahoney.local` (the same slug as step 1, e.g. `kampala@office.malaikahoney.local`). Password: the office's code (staff will type this exactly, so keep it simple — Firebase requires at least 6 characters).
+3. Firebase Console → **Firestore Database** → `allowedStaff` collection → **Add document**, same document ID as the email in step 2. No fields required — its mere existence grants access. Doing this **in the same session as step 2** means staff at that office never see an "Approval Needed" screen at all. (If this step is skipped, the office can still sign in and will land on "Approval Needed" — an admin can approve it later from **Approve Requests** in the app, same as any other pending request; see below.)
+4. **To make an office an admin** (able to see and act on **Approve Requests**), add a `role` field with string value `admin` to its `allowedStaff` document. This is the **only** way to grant admin — it can never be done from within the app itself, by design.
 
-1. Ask the staff member to open the app, tap **Create Account**, and enter their name, phone number, and a password of their choosing (once — after that they use **Sign In** with the same phone + password). They'll land on an "Approval Needed" screen showing their phone number. This automatically creates a `signupRequests` entry, visible to admins.
-2. An admin opens the app, taps **Approve Requests** on Home, and taps **Approve** (or **Reject**) next to that person's name/phone.
+To revoke an office's access entirely, delete its `allowedStaff` document. To rotate an office's code (e.g. someone who knew it has left), reset that Auth user's password in Console — there's no way to invalidate just one person's knowledge of a shared code, only the whole office's.
+
+**Prerequisite (one-time, per Firebase project):** the **Email/Password** sign-in provider must be enabled in Firebase Console → **Authentication** → **Sign-in method** → **Email/Password** → **Enable** (it's the provider office accounts actually use under the hood).
+
+Locally, use the **Auth emulator** (`http://localhost:4000/auth` when `./.tools/run-emulators.sh` is running) and the **Firestore emulator** for all of the above the same way — no real Console access needed to test the full flow, including the Approve Requests safety net.
+
+## Phone+password / Google Sign-In (hidden, kept for later)
+
+Both remain fully working in the code, just hidden from the Login screen behind `PHONE_SIGNIN_ENABLED`/`GOOGLE_SIGNIN_ENABLED` in `public/js/lib/constants.js` (both `false` by default). If either is ever flipped back to `true`, self-service sign-in resumes for that method, feeding into the same `allowedStaff`/`signupRequests`/**Approve Requests** pipeline described above:
+
+1. Ask the person to open the app and sign in with whichever method was re-enabled. They'll land on an "Approval Needed" screen showing their identity. This automatically creates a `signupRequests` entry, visible to admins.
+2. An admin opens the app, taps **Approve Requests** on Home, and taps **Approve** (or **Reject**) next to that person's name/identity.
 3. Tell them to reopen the app and tap **Check Again** on the approval screen (or just reload the app) — they'll land on Home.
 
-### Via Firebase Console (bootstrapping the first admin, or as a fallback)
-
-1. Firebase Console → **Firestore Database** → `allowedStaff` collection → **Add document**.
-2. Document ID: their exact email address as shown on their "Approval Needed" screen for a Google account (e.g. `jokello@gmail.com`), or the synthetic phone-account address for a phone account — digits-only phone number + `@staff.malaikahoney.local` (e.g. a staff member who typed `0772 123 456` gets `0772123456@staff.malaikahoney.local`). No fields are required to grant plain staff access — but adding a note field (e.g. `addedAt`) is fine for your own record-keeping.
-3. **To make this person an admin** (able to see and act on `/admin/approvals`), add a `role` field with string value `admin` to their document. This is the **only** way to grant admin — it can never be done from within the app itself, by design, so a compromised staff account can't grant itself or others elevated access.
-
-**Prerequisite (one-time, per Firebase project):** the **Email/Password** sign-in provider must be enabled in Firebase Console → **Authentication** → **Sign-in method** → **Email/Password** → **Enable**, before phone+password sign-in works in production (it's the provider phone accounts actually use under the hood). The **Google** provider only needs enabling if `GOOGLE_SIGNIN_ENABLED` is ever flipped back to `true`.
-
-To revoke access, delete that person's document from `allowedStaff` (Console only — this can't be done from the app). Note that a device that already has cached access won't be blocked until it next reaches the server (see [[Risk-Register]]).
-
-Locally, sign in against the **Auth emulator** (`http://localhost:4000/auth` when `./.tools/run-emulators.sh` is running) — the phone+password Create Account/Sign In flow works exactly as in production, no real phone or SMS involved (it's just Firebase Auth's email/password provider under a synthetic address) — and add allowlist entries (with `role: admin` for a test admin) directly to the **Firestore emulator** the same way (Emulator UI's Firestore tab, or the Admin SDK, both of which bypass rules the way Console does against production).
+The **Google** provider needs enabling in Firebase Console → **Authentication** → **Sign-in method** → **Google** only if `GOOGLE_SIGNIN_ENABLED` is flipped on.
 
 ## Editing reference data
 

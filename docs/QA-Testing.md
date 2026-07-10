@@ -9,35 +9,35 @@ There is no automated test suite for v1 (a deliberate scope decision — see [[B
 # in a second terminal, serve the app (or use the Firebase Hosting emulator's own port)
 npx serve public -l 5000
 ```
-Open `http://localhost:5000`. The app auto-detects `localhost` and connects to the Firestore **and Auth** emulators instead of production (see `public/js/lib/firebase.js` and [[Config-Management]]) — so testing never touches real farmer data or real staff accounts. Tapping **Create Account** and entering a phone number + password against the Auth emulator works exactly as in production (no real phone/SMS involved — see [[Database-Schema]] "Staff accounts") — after creating the account, add its synthetic email (`{digits}@staff.malaikahoney.local`) to the Firestore emulator's `allowedStaff` collection to grant test access (Emulator UI's Firestore tab, or the Admin SDK) — see [[Config-Management]] "Staff account provisioning." Google Sign-In is hidden by default (`GOOGLE_SIGNIN_ENABLED` in `public/js/lib/constants.js`) — flip it to `true` locally if you specifically need to test that path.
+Open `http://localhost:5000`. The app auto-detects `localhost` and connects to the Firestore **and Auth** emulators instead of production (see `public/js/lib/firebase.js` and [[Config-Management]]) — so testing never touches real farmer data or real staff accounts. Add a `fieldOffices` document (Emulator UI's Firestore tab, or the Admin SDK) so the office picker on Login has something to show, then create the matching Auth user (Emulator UI's Authentication tab) with the office's synthetic email and a test code as its password — see [[Config-Management]] "Field office provisioning," which works identically against the emulator, no real Console access needed. Phone+password and Google Sign-In are both hidden by default (`PHONE_SIGNIN_ENABLED`/`GOOGLE_SIGNIN_ENABLED` in `public/js/lib/constants.js`) — flip either to `true` locally if you specifically need to test that path.
 
 ## Golden-path checklist (run before every release)
 
 ### 0. Login, authorization, and first-run tutorial
-- [ ] Tap **Create Account**, enter a name/phone/password not on the `allowedStaff` allowlist, and confirm it lands on "Approval Needed" (showing that account's **phone number**, not a raw synthetic email), not Home or any farmer data screen.
+- [ ] Confirm the Login screen shows an **Office** dropdown (populated from `fieldOffices`) and a **Code** field, with no phone/email or Google UI visible, and minimal copy overall (this screen is designed to be readable by staff who don't read/speak English well).
+- [ ] Sign in with an office whose synthetic email is **not** on the `allowedStaff` allowlist and confirm it lands on "Approval Needed" (showing that office's id, not a raw synthetic email), not Home or any farmer data screen.
 - [ ] From "Approval Needed", try navigating directly to `#/home` (or any other route) via the address bar/hash and confirm it bounces back to `#/not-authorized` rather than granting access.
-- [ ] Add that account's synthetic email to `allowedStaff` (Firestore Console or emulator), tap **Check Again**, and confirm it now lands on Home (or the tutorial, if this account hasn't seen it — see below).
-- [ ] Sign out, then **Sign In** with the same phone + password and confirm it lands on Home (or Tutorial) directly, with no approval-needed detour.
-- [ ] Try **Sign In** with the wrong password and confirm a clear "Incorrect phone number or password" error, not a crash or a silent no-op.
-- [ ] Try **Create Account** again with a phone number that already has an account and confirm a clear "account already exists — use Sign In instead" error.
+- [ ] Add that office's synthetic email to `allowedStaff` (Firestore Console or emulator), tap **Check Again**, and confirm it now lands on Home (or the tutorial, if this account hasn't seen it — see below).
+- [ ] Sign out, then sign back in with the same office + code and confirm it lands on Home (or Tutorial) directly, with no approval-needed detour.
+- [ ] Try signing in with the wrong code and confirm a short, clear "Wrong code." error, not a crash or a silent no-op.
 - [ ] For an account that hasn't seen the tutorial yet, confirm sign-in routes to the 4-slide tutorial instead of straight to Home, and that **Skip** and **Get Started** (final slide) both land on Home and mark the tutorial seen (won't show again for that account on that device).
 - [ ] Confirm reloading the app while already signed in and approved goes straight to Home (no login flash, no repeated tutorial, no repeated approval check hitting the network).
 - [ ] Confirm reloading the app **offline** while already signed in and previously approved still reaches Home (authorization must be cached locally, not re-checked live every load).
 - [ ] Sign out (**Sign Out** button at the bottom of Home) and confirm it returns to Login and blocks access to other routes until signed back in.
-- [ ] After signing out, confirm the login screen does **not** auto-sign back in as the previous user, and that a **different** phone number can immediately create/sign into its own account on the same browser/device.
-- [ ] Confirm the Google Sign-In button is **not** visible on Login by default (`GOOGLE_SIGNIN_ENABLED` is `false`); if testing that path specifically, flip the flag locally and confirm the button reappears and still works.
-- [ ] Confirm the Password field on Login is the same height/size as the Phone Number field above it (a missing `input[type="password"]` CSS rule previously left it at the browser's smaller default size).
+- [ ] After signing out, confirm the login screen does **not** auto-sign back in as the previous office, and that a **different** office can immediately sign into its own account on the same browser/device.
+- [ ] Confirm the Password field on Login (visible only when `PHONE_SIGNIN_ENABLED` is flipped on) is the same height/size as the Phone Number field above it (a missing `input[type="password"]` CSS rule previously left it at the browser's smaller default size).
+- [ ] Flip `PHONE_SIGNIN_ENABLED` and `GOOGLE_SIGNIN_ENABLED` to `true` locally and confirm both their UIs reappear (stacked below the office form) and still work end-to-end (Create Account / Sign In for phone, the Google popup flow) — then flip both back to `false` before shipping.
 
 ### 0b. Admin approvals
 - [ ] Sign in with a non-admin `allowedStaff` account and confirm **no** "Approve Requests" button appears on Home.
 - [ ] Add `role: 'admin'` to that account's `allowedStaff` document (Console or emulator), reload, and confirm the button now appears — with a `(N)` count matching the number of `pending` `signupRequests`.
-- [ ] Create a brand-new phone+password account (not on the allowlist) to generate a `signupRequests` entry, then as the admin, open **Approve Requests** and confirm that request appears with the correct name, **Phone** (not a raw synthetic email), and date.
-- [ ] Tap **Approve** and confirm: the request disappears from the list, an `allowedStaff` document now exists for that account's synthetic email, and the `signupRequests` document is updated to `status: 'approved'` with `resolvedAt`/`resolvedBy` set.
-- [ ] Confirm the newly-approved account can now sign in (phone + the password it was created with) and reach Home directly (no more "Approval Needed").
+- [ ] Sign in with a brand-new office account (its Auth user exists, but not yet on `allowedStaff`) to generate a `signupRequests` entry, then **as a different account** (the admin), open **Approve Requests** and confirm that request appears with the correct name, **Office**, and date.
+- [ ] Tap **Approve** and confirm: the request disappears from the list, an `allowedStaff` document now exists for that office's synthetic email, and the `signupRequests` document is updated to `status: 'approved'` with `resolvedAt`/`resolvedBy` set.
+- [ ] Confirm the newly-approved office can now sign in (office + code) and reach Home directly (no more "Approval Needed").
 - [ ] Generate a second `signupRequests` entry and tap **Reject** — confirm it disappears from the list, **no** `allowedStaff` document is created, and the request is updated to `status: 'rejected'`.
 - [ ] Confirm that rejected account signing in again generates a **fresh pending request** (rejection isn't permanent) rather than being silently blocked with no path forward.
 - [ ] As a non-admin approved account, confirm direct navigation to `#/admin/approvals` does not expose other staff's pending requests (Firestore rules should deny the `list` read — the screen should show an error/empty state, not real data).
-- [ ] Approve a pending request whose `allowedStaff` document **already exists** (e.g. an admin bootstrapped directly in Console per [[Config-Management]], who still has a stale pending request from their own first sign-in attempt) — confirm this succeeds and clears the request, rather than a silent `permission-denied` (Firestore rules only allow `create`, not `update`, on `allowedStaff` — approving must skip the write entirely when a document already exists rather than attempting to overwrite it).
+- [ ] **Critical regression check:** create an office account, sign in with it (generating a pending request), then **as a different, already-admin account**, add that same office directly to `allowedStaff` via Console/emulator (simulating provisioning it there first) — its `signupRequests` entry is still `pending`. Now approve that stale request from **Approve Requests** and confirm it succeeds (the request resolves to `approved`, the `allowedStaff` document is left untouched) rather than a silent `permission-denied` — Firestore rules only allow `create` on `allowedStaff`, never `get` on someone else's document or `update`, so `approveRequest` must attempt the write and treat a `permission-denied` result as "already exists, nothing to grant," not pre-check existence with a `getDoc` (a `getDoc` on another account's document is itself denied by rules — this exact mistake shipped once and must not regress).
 - [ ] Confirm the "No pending sign-in requests." empty state is vertically **and** horizontally centered, not stuck at the top-left.
 
 ### 1. New Farmer registration
@@ -118,7 +118,17 @@ Open `http://localhost:5000`. The app auto-detects `localhost` and connects to t
 - [ ] Confirm New Farmer registration and Buy Produce's purchase form (the actual product/weight/price form) also start at the top.
 - [ ] Confirm one-time acknowledgment screens — New Farmer success, Buy Produce success, Reconcile's "nothing to fix" empty state, Approve Requests' "no pending requests" empty state, Login, Not Authorized, Tutorial — remain vertically **centered**.
 
-### 10. Device/browser checks
+### 10. First-load performance (lazy screen imports)
+- [ ] With browser cache cleared (or a private/incognito window) and the network tab open, load the app fresh and count local (same-origin) JS requests fired before Login renders — should be roughly a dozen, not ~26 (every screen used to load eagerly regardless of route; now only the current route's screen module loads, on demand, via `app.js`'s `lazyRoute()`).
+- [ ] Confirm navigating to a screen not yet visited this session (e.g. New Farmer) briefly shows a generic "Loading…" placeholder rather than a blank flash while its module fetches, then renders normally.
+- [ ] Confirm re-visiting a screen already loaded this session is instant (the browser/module cache already has it - no visible reload of that screen's JS).
+
+### 11. iOS fullscreen / status bar (requires a real iOS device - can't be fully verified via the emulator/desktop preview)
+- [ ] Add the app to the Home Screen on an iPhone, open it from there, and confirm there's no colored seam between the status bar and the app's header - the status bar area should read as the same background as the header, not a separate bar.
+- [ ] Confirm the header/logo and any bottom buttons aren't visually clipped by the notch/status bar or the home indicator (the app should look inset, not overlapped).
+- [ ] Confirm normal browser-tab use (not installed) looks unchanged - `env(safe-area-inset-*)` should resolve to `0` there, so this is a no-op outside of the installed PWA.
+
+### 12. Device/browser checks
 - [ ] Test on an actual Android phone (or Chrome DevTools device emulation at minimum) at a small screen size (~360×640) — confirm each screen fits without scrolling per the design rules in [[System-Architecture]].
 - [ ] Confirm buttons are large enough to tap accurately one-handed.
 - [ ] Confirm text is legible at default phone zoom without squinting.

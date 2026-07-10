@@ -25,7 +25,7 @@ export function renderNotAuthorized(root) {
         }
         checkBtn.disabled = false;
         checkBtn.textContent = 'Check Again';
-        statusBox.textContent = 'Still not approved yet. Ask your admin to add ' + email + ' to the staff list, then try again.';
+        statusBox.textContent = 'Not yet. Ask your admin.';
       },
     },
     'Check Again'
@@ -36,11 +36,7 @@ export function renderNotAuthorized(root) {
     el('div', { class: 'centered-screen' }, [
       el('div', { class: 'confirm-icon', style: 'color:var(--color-yellow-dark)' }, [iconEl('person')]),
       el('h1', { style: 'text-align:center' }, 'Approval Needed'),
-      el(
-        'p',
-        { class: 'welcome', style: 'text-align:center' },
-        'You’re signed in as ' + email + ', but an admin needs to approve this account before you can use the app.'
-      ),
+      el('p', { class: 'welcome', style: 'text-align:center' }, email),
       el('hr', { class: 'hr' }),
       checkBtn,
       statusBox,

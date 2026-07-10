@@ -6,9 +6,18 @@
 <title>Malaika Honey — Farmer App</title>
 <meta name="theme-color" content="#7c2328" />
 <meta name="color-scheme" content="light" />
+<!-- iOS-specific: manifest.webmanifest's "display": "standalone" alone isn't
+     enough for Safari to give a home-screen install true fullscreen - these
+     three make it overlay the status bar (black-translucent) instead of
+     leaving a separate colored bar, which was showing as a seam. See
+     styles.css #app for the matching safe-area padding this requires. -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Malaika Honey" />
 <link rel="icon" href="assets/icons/favicon-32.png" />
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png" />
 <link rel="manifest" href="manifest.webmanifest" />
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin />
 <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
