@@ -1,11 +1,12 @@
 import { collection, getDocs, getDocsFromCache } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { db } from '../lib/firebase.js';
-import { el, mount } from '../lib/ui.js';
+import { el, mount, toast } from '../lib/ui.js';
 import { iconEl } from '../lib/icons.js';
 import { APP_VERSION } from '../lib/constants.js';
 import { getUnverifiedPurchases } from '../lib/db.js';
 import { signOutStaff, getCurrentUser, isAdminLocally } from '../lib/auth.js';
 import { getSyncState } from '../lib/sync.js';
+import { isPushSupported, isPushEnabledLocally, enablePushNotifications, disablePushNotifications } from '../lib/push.js';
 
 function handleSignOut() {
   if (getSyncState() !== 'synced') {
@@ -19,6 +20,50 @@ function handleSignOut() {
   signOutStaff();
 }
 
+/**
+ * Admin-only "Enable Notifications" toggle - hidden entirely unless
+ * isPushSupported() resolves true (requires a configured vapidKey, see
+ * push.js and docs/Push-Notifications.md, plus browser/platform support).
+ * Lets an admin opt this specific device in/out of push notifications for
+ * new sign-in requests, purchases, and farmer registrations.
+ */
+function renderNotifToggle(isAdmin, user) {
+  const btn = el('button', { type: 'button', class: 'btn btn-outline', hidden: true });
+
+  function setState(enabled) {
+    btn.replaceChildren(iconEl('bell'), document.createTextNode(enabled ? ' Notifications On' : ' Enable Notifications'));
+  }
+
+  if (!isAdmin) return btn;
+
+  isPushSupported().then((supported) => {
+    if (!supported) return;
+    btn.hidden = false;
+    setState(isPushEnabledLocally(user.email));
+
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        if (isPushEnabledLocally(user.email)) {
+          await disablePushNotifications();
+          setState(false);
+          toast('Notifications turned off on this device.');
+        } else {
+          await enablePushNotifications();
+          setState(true);
+          toast('Notifications enabled on this device.');
+        }
+      } catch (err) {
+        toast(err.message || 'Could not update notification settings.');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
+  return btn;
+}
+
 export function renderHome(root) {
   const reconcileBanner = el('div', { hidden: true });
   const user = getCurrentUser();
@@ -27,6 +72,7 @@ export function renderHome(root) {
   const approveBtn = isAdmin
     ? el('a', { href: '#/admin/approvals', class: 'btn btn-outline' }, [iconEl('idCard'), 'Approve Requests'])
     : null;
+  const notifToggle = renderNotifToggle(isAdmin, user);
 
   mount(
     root,
@@ -51,6 +97,7 @@ export function renderHome(root) {
         [iconEl('honeyJar'), 'Buy Produce']
       ),
       approveBtn,
+      notifToggle,
     ]),
     el('button', { type: 'button', class: 'btn btn-secondary', onClick: handleSignOut }, [iconEl('logout'), 'Sign Out']),
     el('div', { class: 'home-footer' }, [

@@ -26,18 +26,18 @@ Malaika Honey/
 │   │       ├── firebase.config.example.js   # template/reference
 │   │       └── firebase.config.js           # committed — see note below
 │   └── assets/            # logo, icons
-├── firebase.json           # hosting + emulator config
+├── functions/              # Cloud Functions (push notifications - see docs/Push-Notifications.md, not yet deployed)
+├── firebase.json           # hosting + functions + emulator config
 ├── .firebaserc             # maps this repo to the malaikahoney-78577 project
 ├── firestore.rules
-├── firestore.indexes.json
-└── netlify.toml             # optional alternate host
+└── firestore.indexes.json
 ```
 
 ## Firebase Web App configuration
 
 The Firebase **web app config object** (`apiKey`, `authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, `appId`) is required by the client SDK to connect to `malaikahoney-78577`. This is *not* a server secret — it's safe to ship in a public web app, because access is actually controlled by Firestore Security Rules, not by hiding this object.
 
-**`public/js/config/firebase.config.js` is committed to git with the real values**, deliberately. This app is a static site with no build step and no environment-variable injection at deploy time (Netlify/Firebase Hosting just publish the `public/` folder as-is) — so if this file isn't in the repo, the deployed app has no config to import and fails to start (a blank screen, since the very first module import throws). Gitignoring it was tried initially and broke the first Netlify deploy for exactly this reason.
+**`public/js/config/firebase.config.js` is committed to git with the real values**, deliberately. This app is a static site with no build step and no environment-variable injection at deploy time (Firebase Hosting just publishes the `public/` folder as-is) — so if this file isn't in the repo, the deployed app has no config to import and fails to start (a blank screen, since the very first module import throws). Gitignoring it was tried initially and broke the first deploy for exactly this reason (back when Netlify was also a supported host — see [[Release-Management]]; Firebase Hosting is now the only one).
 
 The web app registration was created via `firebase apps:create WEB` and its config fetched via `firebase apps:sdkconfig WEB <appId>` — both one-time CLI operations against `malaikahoney-78577`. If the app is ever recreated or the project changes, regenerate this file the same way, or from Firebase Console → Project settings → General → "Your apps".
 
@@ -47,7 +47,7 @@ Locally, none of this matters day-to-day: `public/js/lib/firebase.js` detects `l
 
 ## Environment variables / secrets
 
-There are currently no server-side secrets (no Cloud Functions, no third-party API keys) — the app is 100% static front-end + Firestore. If Cloud Functions, SMS, or payment integrations are added later (see [[Backlog]]), their secrets belong in Firebase Functions config / Google Secret Manager, never in the `public/` folder, since everything under `public/` is shipped to end-user browsers.
+There are still no server-side secrets to manage — `functions/` (push notifications, see [[Push-Notifications]]) authenticates via the Cloud Functions runtime's own default service account (Firebase Admin SDK auto-credentials), not a manually-configured secret. If a future Cloud Function, SMS, or payment integration ever needs a real API key, it belongs in Firebase Functions config / Google Secret Manager, never in the `public/` folder, since everything under `public/` is shipped to end-user browsers. The one client-side value related to this, `vapidKey` in `public/js/config/firebase.config.js`, is a Web Push public key, not a secret — same category as the rest of the Firebase web app config above.
 
 ## Versioning
 

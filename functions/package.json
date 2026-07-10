@@ -1,0 +1,13 @@
+{
+  "name": "malaika-honey-functions",
+  "description": "Cloud Functions for Malaika Honey - admin push notifications (see docs/Push-Notifications.md). Requires the Firebase Blaze plan; not yet deployed.",
+  "private": true,
+  "main": "index.js",
+  "engines": {
+    "node": "20"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^5.1.1"
+  }
+}

@@ -4,21 +4,61 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
-Nothing yet.
+## [0.6.3] - 2026-07-10
+
+Office+code sign-in as the primary method — this and the `0.5.3`–`0.6.2` releases below were developed in parallel and merged together; this entry covers only what's genuinely new here, not the overlapping perf/fullscreen work already described under those versions.
+
+### Added
+- **Office + code sign-in**: one shared login per field office (`signInWithOfficeCode` in `public/js/lib/auth.js`) — pick the office from a dropdown, type its code. Unlike every prior sign-in method, this is admin-provisioned rather than self-service (see [[Config-Management]] "Field office provisioning"); the office's code is literally its Firebase Auth password. New `fieldOffices/{officeId}` Firestore collection (`{ label, order, active }`, same pattern as `products`/`grades`/etc.) powers the dropdown — the one collection in the whole schema readable with no sign-in at all, since the picker has to render before anyone is authenticated.
+- **`PHONE_SIGNIN_ENABLED`** flag (`public/js/lib/constants.js`, `false` by default): phone+password is now hidden the same way Google already was, both fully retained in the code and restorable by flipping a flag.
+- Minimal-text redesign of Login and "Approval Needed" (`notAuthorized.js`) — long explanatory paragraphs removed, short labels/identity only, for staff who don't read/speak English well.
+
+### Fixed
+- **A second, independent fix for the same `adminApprovals.js` regression addressed by 0.6.1's rules change below:** removed the client-side pre-check (`getDoc` on the target account, added in 0.5.2) entirely rather than relying on the rules loosening alone — `approveRequest` now just attempts the `create` and treats a `permission-denied` result as "already exists, nothing to grant." Kept alongside 0.6.1's `firestore.rules` change (both are correct and harmless together) since it makes the client code correct independent of that specific rule.
+
+### Merge note
+This release reconciles two sets of changes to the same files developed in parallel: `app.js`'s lazy/eager route split, `index.html`'s preconnects and boot spinner, and the `0.5.3`/`0.5.4` perf and fullscreen work all took the version already on `main` (described below) as-is. Combined the two independent fullscreen approaches: kept `apple-mobile-web-app-status-bar-style: black-translucent` (over `default`) with the safe-area padding applied to `#app` as a whole (over `.app-header` alone), so the inset covers the offline banner too when it's showing, not just the header — otherwise identical to what's described under 0.5.4.
+
+## [0.6.2] - 2026-07-10
+
+Reconciles this branch with the startup-speed fix (`app.js` lazy auth/screen loading, boot-time spinner) pushed directly to `main` while this PR was open — no functional change beyond the version/cache-name bump needed to keep the two independently-numbered `0.5.3` releases straight (see below).
+
+## [0.6.1] - 2026-07-10
+
+### Fixed
+- **Approving a signup request failed with "Missing or insufficient permissions"** for any admin approving someone *other than themselves* (i.e. every real case) — `adminApprovals.js`'s `approveRequest()` reads the requester's own `allowedStaff` doc first (added in 0.5.2, to check whether it already exists before deciding create-vs-skip), but `firestore.rules` only ever allowed a user to `get` their *own* `allowedStaff` document, not an admin reading someone else's. Fixed by allowing `get` for `request.auth.token.email == email || isAdmin()`, the same self-or-admin pattern already used for `signupRequests`. This is a live production bug (unrelated to the fullscreen/push-notification work in this same PR) — deploy `firestore.rules` as soon as possible: `firebase deploy --only firestore:rules`.
+
+### Removed
+- **Netlify support.** Firebase Hosting is now the only deploy target — deleted `netlify.toml` and the Netlify GitHub integration/preview deploys, removed Netlify from `docs/Release-Management.md`/`Config-Management.md`/`System-Architecture.md`/`README.md`/`Backlog.md`, and dropped the `.netlify` entry from `.gitignore`. Production has always been `https://malaikahoney-78577.web.app/` (Firebase Hosting) regardless; this just removes the now-unused second option so PRs stop getting Netlify preview-deploy noise.
 
 ## [0.6.0] - 2026-07-10
 
-Office+code sign-in as the primary method, first-load performance, and iOS fullscreen fix.
+Admin push notifications — built and functionally complete, but **inert until deployed** (see [[Push-Notifications]] for the one-time Blaze-plan/VAPID-key setup this depends on; no behavior change for any current user until then).
 
 ### Added
-- **Office + code sign-in**: one shared login per field office (`signInWithOfficeCode` in `public/js/lib/auth.js`) — pick the office from a dropdown, type its code. Unlike every prior sign-in method, this is admin-provisioned rather than self-service (see `docs/Config-Management.md` "Field office provisioning"); the office's code is literally its Firebase Auth password. New `fieldOffices/{officeId}` Firestore collection (`{ label, order, active }`, same pattern as `products`/`grades`/etc.) powers the dropdown — the one collection in the whole schema readable with no sign-in at all, since the picker has to render before anyone is authenticated.
-- **`PHONE_SIGNIN_ENABLED`** flag (`public/js/lib/constants.js`, `false` by default): phone+password is now hidden the same way Google already was, both fully retained in the code and restorable by flipping a flag.
-- Minimal-text redesign of Login and "Approval Needed" (`notAuthorized.js`) — long explanatory paragraphs removed, short labels/identity only, for staff who don't read/speak English well.
-- Lazy-loaded screen modules: `app.js` now dynamically `import()`s each screen on demand inside its route handler instead of statically importing all 12 up front. First-load JS requests before Login renders drop from ~26 to about a dozen — this was the main cause of an ~8 second first load on a real mobile connection. A `<link rel="preconnect">` to Firebase's CDN was also added.
-- iOS fullscreen: `apple-mobile-web-app-capable`/`apple-mobile-web-app-status-bar-style` (`black-translucent`) meta tags, plus `env(safe-area-inset-top/bottom)` padding on `#app` in `styles.css` — fixes a colored seam between the status bar and the app on a Home Screen install (the manifest's `"display": "standalone"` alone isn't enough on iOS).
+- **`functions/`**: new Cloud Functions codebase (`notifyAdminsOnSignupRequest`, `notifyAdminsOnPurchase`, `notifyAdminsOnFarmerRegistered`) — Firestore `onDocumentCreated` triggers that push a notification to every admin's registered device via Firebase Cloud Messaging whenever a sign-in request, purchase, or new farmer is created. Prunes dead tokens automatically. Not deployed by the existing `firebase deploy --only hosting` release process, and requires the Blaze plan.
+- **`public/js/lib/push.js`**: client-side FCM registration — requests notification permission, saves the device's token onto the signed-in admin's own `allowedStaff/{email}.fcmTokens`, and reuses the existing `sw.js` service worker registration rather than adding a second one.
+- **"Enable Notifications" toggle on Home** (admin-only, `home.js`), hidden entirely unless `isPushConfigured()`/`isPushSupported()` both pass (real `vapidKey` configured, and the platform actually supports Web Push — notably excludes iOS Safari outside an installed home-screen PWA).
+- **`public/sw.js`**: `push` and `notificationclick` handlers — shows the incoming notification and, on tap, focuses/opens the app to the relevant screen (Approve Requests, or a farmer's profile).
+- **`vapidKey`** in `public/js/config/firebase.config.js` (currently `''`) — the single value that flips this feature from inert to live once filled in.
+- **`firestore.rules`**: a signed-in user may now `update` their own `allowedStaff` document, but only the `fcmTokens` field — everything else (`role`, `addedAt`) stays immutable from the client, so this can't be used for privilege escalation.
+- **`docs/Push-Notifications.md`**: full setup checklist and architecture notes for this feature.
+
+## [0.5.4] - 2026-07-10
 
 ### Fixed
-- **Regression in `adminApprovals.js`'s `approveRequest`, shipped in 0.5.2 and caught while testing this batch:** the "does this allowedStaff document already exist" check added in 0.5.2 used `getDoc()` on the *target* account's document — which Firestore rules only allow for that account itself, not an admin checking someone else's. This silently broke approving anyone who wasn't the signed-in admin's own account (the 0.5.2 test had accidentally self-approved, masking it). Fixed by removing the pre-check entirely: attempt the `create` and treat a `permission-denied` result as "already exists, nothing to grant" — Firestore's rules already guarantee that's the only reason a `create`-permitted admin's write would fail here.
+- **App didn't run fullscreen when added to the Home Screen on iOS**, showing Safari's own chrome above the header — added the `apple-mobile-web-app-capable`/`apple-mobile-web-app-status-bar-style`/`apple-mobile-web-app-title` meta tags `index.html` was missing (the `manifest.webmanifest`'s `"display": "standalone"` alone isn't enough for older iOS Safari to treat it as a true standalone app).
+- **Visible colour seam behind the status bar**: `.app-header` now pads itself with `env(safe-area-inset-top)` so its white background extends up under the status bar/notch instead of showing the page's cream background there, making the status bar and header read as one continuous surface. Added matching `env(safe-area-inset-bottom)` padding to `#app` so the bottom of the screen isn't crowded against the home-indicator area either.
+- **Logo crowded the sync badge** in the header — `.app-header img.logo` was rendered at a fixed `48px` height regardless of the lockup's wide aspect ratio, leaving little room for the "Synced" badge next to it on narrow phones. Reduced to `38px` and added a small `gap` on `.app-header` for consistent minimum spacing.
+
+## [0.5.3] - 2026-07-10
+
+Startup speed fix: opening the app took as long as ~8 seconds with nothing visible on screen. Three compounding causes, all fixed:
+
+### Fixed
+- **App open no longer blocks on a live network call for a staff member already approved on this device.** `app.js`'s `start()` used to always `await refreshAuthorization(user)` (a live Firestore `getDoc`) before the router ran its first route or rendered anything — on every single app open, not just the first. This directly contradicted the documented QA expectation ("no repeated approval check hitting the network," see [[QA-Testing]]) and was the single biggest contributor to the delay, especially on a slow mobile connection. Now this network round trip is only awaited the first time a device confirms a given staff member; on every subsequent open it's skipped up front (the already-cached local flag is used instead) and refreshed quietly in the background after the UI is already showing, so a since-revoked account is still caught eventually without holding up the render.
+- **Non-landing screens are no longer fetched and parsed before the app can show anything.** `app.js` used to `import` all 12 screens (including Buy Produce, Reconcile, Farmer Card, etc.) eagerly at the top of the file, so a cold open had to download and evaluate the whole app before routing to even the Login or Home screen. Every screen except Login and Home (the only two possible landing screens) is now fetched via a dynamic `import()` the first time its route is visited, shrinking the initial module graph substantially. Each screen is still precached by the service worker after first visit, so this only costs a network round trip once per device.
+- **Blank white screen for the entire load.** `index.html` now paints the header logo and a loading spinner immediately from static markup, before `js/app.js` has even been fetched, instead of leaving `#app-header`/`#screen-root` empty until the app finished booting. Also added `<link rel="preconnect">` for the Firebase SDK CDN and Auth/Firestore API origins, and `<link rel="modulepreload">` for the app's own critical-path modules, so those connections/fetches start in parallel with HTML parsing instead of only being discovered after `app.js` runs.
 
 ## [0.5.2] - 2026-07-09
 

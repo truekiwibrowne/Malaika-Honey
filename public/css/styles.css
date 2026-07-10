@@ -68,6 +68,7 @@ html, body {
   flex: none;
   display: flex;
   align-items: center;
+  gap: 10px;
   padding: 14px 16px;
   background: var(--color-bg);
   border-bottom: 1px solid var(--color-border);
@@ -75,7 +76,7 @@ html, body {
 }
 
 .app-header img.logo {
-  height: 48px;
+  height: 38px;
   width: auto;
   display: block;
 }
@@ -148,6 +149,26 @@ html, body {
   gap: 7px;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+.boot-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.boot-spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--brand-maroon);
+  border-radius: 50%;
+  animation: boot-spin 0.8s linear infinite;
+}
+
+@keyframes boot-spin {
+  to { transform: rotate(360deg); }
 }
 
 .centered-screen {

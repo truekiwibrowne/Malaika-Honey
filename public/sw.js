@@ -13,7 +13,7 @@
  * (see docs/Release-Management.md) - the old cache is deleted on
  * activate, so a stale shell can never get permanently stuck.
  */
-const CACHE_NAME = 'malaika-shell-v0.6.0';
+const CACHE_NAME = 'malaika-shell-v0.6.3';
 
 const SHELL_URLS = [
   './',
@@ -31,6 +31,7 @@ const SHELL_URLS = [
   'js/lib/firebase.js',
   'js/lib/header.js',
   'js/lib/icons.js',
+  'js/lib/push.js',
   'js/lib/referenceData.js',
   'js/lib/sync.js',
   'js/lib/ui.js',
@@ -61,6 +62,7 @@ const FIREBASE_SDK_URLS = [
   'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js',
   'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js',
   'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js',
+  'https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js',
 ];
 
 self.addEventListener('install', (event) => {
@@ -121,6 +123,57 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(() => cached);
       return cached || network;
+    })
+  );
+});
+
+/**
+ * Handles background push notifications (see docs/Push-Notifications.md and
+ * public/js/lib/push.js). Deliberately doesn't use the
+ * firebase-messaging-compat SW helpers - this app already registers exactly
+ * one service worker (this file, at the root scope, for offline app-shell
+ * caching), and a raw 'push' listener works against any FCM web push
+ * payload without needing a second service worker registration. The
+ * Cloud Functions that send these (functions/index.js) always set an
+ * explicit webpush.notification block, so payload.notification is reliably
+ * present here.
+ */
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+  let payload;
+  try {
+    payload = event.data.json();
+  } catch {
+    return;
+  }
+  const notification = payload.notification || {};
+  event.waitUntil(
+    self.registration.showNotification(notification.title || 'Malaika Honey', {
+      body: notification.body || '',
+      icon: 'assets/icons/icon-192.png',
+      badge: 'assets/icons/icon-192.png',
+      data: payload.data || {},
+    })
+  );
+});
+
+// Focuses an already-open app window (navigating it to the notification's
+// deep link) rather than always opening a new one, since staff typically
+// already have the app open/backgrounded on a shared device.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const path = (event.notification.data && event.notification.data.path) || '/home';
+  const targetUrl = new URL('./#' + path, self.registration.scope).href;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ('focus' in client) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(targetUrl);
     })
   );
 });
