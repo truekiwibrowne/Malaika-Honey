@@ -4,6 +4,11 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-07-10
+
+### Added
+- **Short office codes now work as sign-in passwords.** Firebase Auth requires at least 6 characters, but office codes are meant to be short (e.g. 4 digits) for staff to remember and type easily. `signInWithOfficeCode` (`public/js/lib/auth.js`) now transparently appends a fixed, non-secret suffix (`-mhfrm`) to the typed code before it's sent to Firebase — staff only ever type the short code shown to them; the padded value only exists as the real Firebase password, set once when the account is provisioned (see [[Config-Management]] "Field office provisioning", updated with the exact password format to use in Console).
+
 ## [0.6.3] - 2026-07-10
 
 Office+code sign-in as the primary method — this and the `0.5.3`–`0.6.2` releases below were developed in parallel and merged together; this entry covers only what's genuinely new here, not the overlapping perf/fullscreen work already described under those versions.

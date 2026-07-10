@@ -48,6 +48,23 @@ export function officeIdToEmail(officeId) {
   return officeId + '@' + OFFICE_EMAIL_DOMAIN;
 }
 
+// Firebase Auth requires a password of at least 6 characters, but office
+// codes are meant to be short (e.g. 4 digits) so they're easy for staff
+// to remember and type. Appending this fixed, non-secret suffix pads the
+// real Firebase password to a safe length without staff ever needing to
+// know it exists - they always just type the short code shown to them.
+// This does NOT add real security (the suffix is constant and effectively
+// public, documented here in the repo) - the entropy is still only
+// whatever the office code itself provides; see docs/Risk-Register.md.
+// Must stay in sync with whatever password was actually set on each
+// office's Firebase Auth account (see docs/Config-Management.md "Field
+// office provisioning").
+const OFFICE_CODE_PAD = '-mhfrm';
+
+function officeCodeToPassword(code) {
+  return code + OFFICE_CODE_PAD;
+}
+
 function friendlyAuthError(err) {
   switch (err.code) {
     case 'auth/network-request-failed':
@@ -82,7 +99,7 @@ function friendlyAuthError(err) {
  */
 export async function signInWithOfficeCode(officeId, code) {
   try {
-    const credential = await signInWithEmailAndPassword(auth, officeIdToEmail(officeId), code);
+    const credential = await signInWithEmailAndPassword(auth, officeIdToEmail(officeId), officeCodeToPassword(code));
     return credential.user;
   } catch (err) {
     throw new Error(friendlyAuthError(err));

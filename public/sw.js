@@ -13,7 +13,7 @@
  * (see docs/Release-Management.md) - the old cache is deleted on
  * activate, so a stale shell can never get permanently stuck.
  */
-const CACHE_NAME = 'malaika-shell-v0.6.3';
+const CACHE_NAME = 'malaika-shell-v0.6.4';
 
 const SHELL_URLS = [
   './',
