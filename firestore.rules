@@ -33,7 +33,14 @@ service cloud.firestore {
     match /allowedStaff/{email} {
       allow get: if request.auth != null && request.auth.token.email == email;
       allow create: if isAdmin();
-      allow list, update, delete: if false;
+      // A signed-in user may update ONLY their own fcmTokens array (to
+      // register/unregister this device for push notifications - see
+      // docs/Push-Notifications.md) and nothing else on their own
+      // document. role/addedAt stay immutable from the client either way,
+      // so this can never be used to self-grant admin.
+      allow update: if request.auth != null && request.auth.token.email == email
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmTokens']);
+      allow list, delete: if false;
     }
 
     // Created by a signed-in-but-unapproved user for themselves the first

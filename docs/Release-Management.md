@@ -42,6 +42,8 @@ firebase deploy --only hosting
 ```
 Uses `firebase.json` (`"public": "public"`) and the `malaikahoney-78577` project already linked via `.firebaserc`.
 
+Note: this does **not** deploy `functions/` (push notifications — see [[Push-Notifications]]), a separate, not-yet-active deploy target requiring the Blaze plan (`firebase deploy --only functions`, see that doc for the full one-time setup). Ordinary releases per this doc never need to touch it.
+
 ### Option B — Netlify
 Connect the GitHub repo in the Netlify dashboard, or deploy manually:
 ```bash

@@ -26,7 +26,8 @@ Malaika Honey/
 │   │       ├── firebase.config.example.js   # template/reference
 │   │       └── firebase.config.js           # committed — see note below
 │   └── assets/            # logo, icons
-├── firebase.json           # hosting + emulator config
+├── functions/              # Cloud Functions (push notifications - see docs/Push-Notifications.md, not yet deployed)
+├── firebase.json           # hosting + functions + emulator config
 ├── .firebaserc             # maps this repo to the malaikahoney-78577 project
 ├── firestore.rules
 ├── firestore.indexes.json
@@ -47,7 +48,7 @@ Locally, none of this matters day-to-day: `public/js/lib/firebase.js` detects `l
 
 ## Environment variables / secrets
 
-There are currently no server-side secrets (no Cloud Functions, no third-party API keys) — the app is 100% static front-end + Firestore. If Cloud Functions, SMS, or payment integrations are added later (see [[Backlog]]), their secrets belong in Firebase Functions config / Google Secret Manager, never in the `public/` folder, since everything under `public/` is shipped to end-user browsers.
+There are still no server-side secrets to manage — `functions/` (push notifications, see [[Push-Notifications]]) authenticates via the Cloud Functions runtime's own default service account (Firebase Admin SDK auto-credentials), not a manually-configured secret. If a future Cloud Function, SMS, or payment integration ever needs a real API key, it belongs in Firebase Functions config / Google Secret Manager, never in the `public/` folder, since everything under `public/` is shipped to end-user browsers. The one client-side value related to this, `vapidKey` in `public/js/config/firebase.config.js`, is a Web Push public key, not a secret — same category as the rest of the Firebase web app config above.
 
 ## Versioning
 

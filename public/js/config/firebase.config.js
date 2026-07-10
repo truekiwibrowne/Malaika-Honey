@@ -15,3 +15,12 @@ export const firebaseConfig = {
   messagingSenderId: '404440263125',
   appId: '1:404440263125:web:e9473bf7e8761a4b77355c',
 };
+
+// Web Push certificate key pair ("VAPID key") for push notifications (see
+// docs/Push-Notifications.md) - deliberately left blank until that setup is
+// done: Firebase Console -> Project settings -> Cloud Messaging -> Web Push
+// certificates -> generate a key pair, then paste the "Key pair" value here.
+// public/js/lib/push.js checks this is non-empty before showing any
+// notification UI, so leaving it blank keeps the feature fully inert (no
+// broken button, no permission prompt) rather than half-working.
+export const vapidKey = '';

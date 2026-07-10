@@ -6,6 +6,19 @@ All notable changes to this project are documented here. Format loosely follows 
 
 Nothing yet.
 
+## [0.6.0] - 2026-07-10
+
+Admin push notifications — built and functionally complete, but **inert until deployed** (see [[Push-Notifications]] for the one-time Blaze-plan/VAPID-key setup this depends on; no behavior change for any current user until then).
+
+### Added
+- **`functions/`**: new Cloud Functions codebase (`notifyAdminsOnSignupRequest`, `notifyAdminsOnPurchase`, `notifyAdminsOnFarmerRegistered`) — Firestore `onDocumentCreated` triggers that push a notification to every admin's registered device via Firebase Cloud Messaging whenever a sign-in request, purchase, or new farmer is created. Prunes dead tokens automatically. Not deployed by the existing `firebase deploy --only hosting` release process, and requires the Blaze plan.
+- **`public/js/lib/push.js`**: client-side FCM registration — requests notification permission, saves the device's token onto the signed-in admin's own `allowedStaff/{email}.fcmTokens`, and reuses the existing `sw.js` service worker registration rather than adding a second one.
+- **"Enable Notifications" toggle on Home** (admin-only, `home.js`), hidden entirely unless `isPushConfigured()`/`isPushSupported()` both pass (real `vapidKey` configured, and the platform actually supports Web Push — notably excludes iOS Safari outside an installed home-screen PWA).
+- **`public/sw.js`**: `push` and `notificationclick` handlers — shows the incoming notification and, on tap, focuses/opens the app to the relevant screen (Approve Requests, or a farmer's profile).
+- **`vapidKey`** in `public/js/config/firebase.config.js` (currently `''`) — the single value that flips this feature from inert to live once filled in.
+- **`firestore.rules`**: a signed-in user may now `update` their own `allowedStaff` document, but only the `fcmTokens` field — everything else (`role`, `addedAt`) stays immutable from the client, so this can't be used for privilege escalation.
+- **`docs/Push-Notifications.md`**: full setup checklist and architecture notes for this feature.
+
 ## [0.5.3] - 2026-07-10
 
 ### Fixed
