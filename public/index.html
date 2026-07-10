@@ -13,12 +13,33 @@
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="stylesheet" href="css/styles.css" />
+<!-- Firebase Auth/Firestore's CDN and API origins are only discovered
+     once js/app.js has been fetched and parsed - starting the
+     connection (DNS + TLS) for them in parallel with that shaves a
+     round trip off the very first request each one makes. -->
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin />
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin />
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin />
+<link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin />
+<link rel="modulepreload" href="js/app.js" />
+<link rel="modulepreload" href="js/router.js" />
+<link rel="modulepreload" href="js/lib/firebase.js" />
+<link rel="modulepreload" href="js/lib/auth.js" />
 </head>
 <body>
 <div id="app">
   <div id="offline-banner" class="offline-banner" hidden>No internet connection — your work is being saved on this phone and will sync automatically once you're back online.</div>
-  <header class="app-header" id="app-header"></header>
-  <div id="screen-root" class="screen"></div>
+  <header class="app-header" id="app-header">
+    <img class="logo" src="assets/logo/logo-lockup.png" alt="Malaika Honey" />
+  </header>
+  <!-- Static markup, painted before js/app.js has even been fetched -
+       replaced by the router's first real screen once auth/routing
+       resolve. Without this the screen is blank white until then. -->
+  <div id="screen-root" class="screen">
+    <div class="boot-loading" aria-hidden="true">
+      <div class="boot-spinner"></div>
+    </div>
+  </div>
 </div>
 <script type="module" src="js/app.js"></script>
 </body>
