@@ -25,13 +25,16 @@ service cloud.firestore {
     }
 
     // Admin-managed allowlist of approved staff emails, keyed by email
-    // address. A signed-in user may only ever read their OWN entry (to
-    // check their own approval status); admins may additionally create
-    // new entries (approving a pending signupRequest) but never list the
-    // roster or update/delete an existing entry from the client -
-    // revoking access or editing roles stays a Console-only action.
+    // address. A signed-in user may always read their OWN entry (to check
+    // their own approval status); an admin may additionally read ANY
+    // entry - needed to check whether an allowedStaff doc already exists
+    // for a given email before approving a signupRequests entry for it
+    // (see adminApprovals.js approveRequest) - and create new entries, but
+    // never list the roster or update/delete an existing entry from the
+    // client - revoking access or editing roles stays a Console-only
+    // action.
     match /allowedStaff/{email} {
-      allow get: if request.auth != null && request.auth.token.email == email;
+      allow get: if request.auth != null && (request.auth.token.email == email || isAdmin());
       allow create: if isAdmin();
       // A signed-in user may update ONLY their own fcmTokens array (to
       // register/unregister this device for push notifications - see

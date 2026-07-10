@@ -4,6 +4,11 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-07-10
+
+### Fixed
+- **Approving a signup request failed with "Missing or insufficient permissions"** for any admin approving someone *other than themselves* (i.e. every real case) — `adminApprovals.js`'s `approveRequest()` reads the requester's own `allowedStaff` doc first (added in 0.5.2, to check whether it already exists before deciding create-vs-skip), but `firestore.rules` only ever allowed a user to `get` their *own* `allowedStaff` document, not an admin reading someone else's. Fixed by allowing `get` for `request.auth.token.email == email || isAdmin()`, the same self-or-admin pattern already used for `signupRequests`. This is a live production bug (unrelated to the fullscreen/push-notification work in this same PR) — deploy `firestore.rules` as soon as possible: `firebase deploy --only firestore:rules`.
+
 ### Removed
 - **Netlify support.** Firebase Hosting is now the only deploy target — deleted `netlify.toml` and the Netlify GitHub integration/preview deploys, removed Netlify from `docs/Release-Management.md`/`Config-Management.md`/`System-Architecture.md`/`README.md`/`Backlog.md`, and dropped the `.netlify` entry from `.gitignore`. Production has always been `https://malaikahoney-78577.web.app/` (Firebase Hosting) regardless; this just removes the now-unused second option so PRs stop getting Netlify preview-deploy noise.
 
