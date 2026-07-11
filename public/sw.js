@@ -13,7 +13,7 @@
  * (see docs/Release-Management.md) - the old cache is deleted on
  * activate, so a stale shell can never get permanently stuck.
  */
-const CACHE_NAME = 'malaika-shell-v0.6.5';
+const CACHE_NAME = 'malaika-shell-v0.7.0';
 
 const SHELL_URLS = [
   './',
@@ -32,6 +32,7 @@ const SHELL_URLS = [
   'js/lib/header.js',
   'js/lib/icons.js',
   'js/lib/push.js',
+  'js/lib/qrScanner.js',
   'js/lib/referenceData.js',
   'js/lib/sync.js',
   'js/lib/ui.js',
@@ -66,11 +67,17 @@ const FIREBASE_SDK_URLS = [
   'https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js',
 ];
 
+// Also version-pinned and safe to cache indefinitely, but NOT needed for
+// initial render - only fetched on demand when a specific feature is
+// used (e.g. the QR scanner, qrScanner.js). Precached anyway so that
+// feature still works offline after a first successful online use.
+const OTHER_CDN_URLS = ['https://cdn.jsdelivr.net/npm/jsqr@1.4.0/+esm'];
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
       Promise.all(
-        [...SHELL_URLS, ...FIREBASE_SDK_URLS].map((url) =>
+        [...SHELL_URLS, ...FIREBASE_SDK_URLS, ...OTHER_CDN_URLS].map((url) =>
           cache.add(url).catch((err) => {
             console.warn('[sw] Could not precache', url, err);
           })
@@ -91,7 +98,11 @@ self.addEventListener('activate', (event) => {
 });
 
 function isShellAsset(url) {
-  return FIREBASE_SDK_URLS.includes(url) || SHELL_URLS.some((path) => url.endsWith('/' + path) || url.endsWith(path));
+  return (
+    FIREBASE_SDK_URLS.includes(url) ||
+    OTHER_CDN_URLS.includes(url) ||
+    SHELL_URLS.some((path) => url.endsWith('/' + path) || url.endsWith(path))
+  );
 }
 
 self.addEventListener('fetch', (event) => {

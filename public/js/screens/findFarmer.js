@@ -1,5 +1,8 @@
 import { el, mount } from '../lib/ui.js';
 import { searchFarmers } from '../lib/db.js';
+import { navigate } from '../router.js';
+import { openQrScanner } from '../lib/qrScanner.js';
+import { iconEl } from '../lib/icons.js';
 
 let debounceTimer = null;
 
@@ -16,6 +19,20 @@ export function renderFindFarmer(root) {
       debounceTimer = setTimeout(() => runSearch(value), 300);
     },
   });
+
+  const scanBtn = el(
+    'button',
+    {
+      type: 'button',
+      class: 'scan-btn',
+      'aria-label': 'Scan QR code',
+      onClick: async () => {
+        const frn = await openQrScanner();
+        if (frn) navigate('#/farmer/' + frn);
+      },
+    },
+    [iconEl('qrCode')]
+  );
 
   async function runSearch(value) {
     if (!value || value.trim().length < 2) {
@@ -53,7 +70,7 @@ export function renderFindFarmer(root) {
     root,
     el('h1', {}, 'Existing Farmer'),
     el('p', { class: 'welcome' }, 'Find a farmer profile.'),
-    el('div', { class: 'field' }, [searchInput]),
+    el('div', { class: 'field-with-action' }, [el('div', { class: 'field' }, [searchInput]), scanBtn]),
     resultsBox
   );
 

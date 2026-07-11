@@ -31,7 +31,7 @@ function formatFrn() {
 // device-coded format (MHA7K000001) - both are permanent, opaque unique
 // strings and neither is ever migrated to the other (see
 // docs/Database-Schema.md "devices/{deviceCode}").
-function looksLikeFrn(value) {
+export function looksLikeFrn(value) {
   return /^mh[a-z0-9]+$/i.test(value.trim());
 }
 

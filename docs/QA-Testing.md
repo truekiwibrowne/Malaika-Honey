@@ -74,6 +74,14 @@ Open `http://localhost:5000`. The app auto-detects `localhost` and connects to t
 - [ ] Search something with no matches and confirm a clear "no results" state (not a blank screen or spinner forever).
 - [ ] Tap a result and confirm the Farmer Profile loads with correct name, FRN, village, phone, lifetime honey total, last delivery date, and total paid.
 
+### 2b. QR code farmer lookup
+- [ ] From **Existing Farmer** and from the standalone **Buy Produce** entry screen, confirm a scan-QR icon button appears beside the search input.
+- [ ] Tap it, grant camera permission, and scan a farmer's printed/on-screen card — confirm it navigates straight to that farmer's **Farmer Profile** (not directly into the purchase form).
+- [ ] Scan the same farmer's QR code with a generic phone camera or third-party QR app (not this app) and confirm it opens the PWA directly to that farmer's profile in a browser tab — this only works if the QR encodes the full profile URL, not a bare FRN.
+- [ ] Deny camera permission (or test on a device with no camera) and confirm a clear "Couldn't open the camera. You can still search by name or FRN." message with a working **Cancel**, not a dead/frozen overlay.
+- [ ] Scan an unrelated QR code (e.g. a link to some other website) and confirm "That doesn't look like a Malaika Honey farmer code. Try again." rather than a broken navigation, and that **Cancel** still works from that state.
+- [ ] After at least one prior online session, go offline and confirm the scan button still opens the camera and decodes correctly (`jsqr` and `qrScanner.js` are precached — see `public/sw.js` `OTHER_CDN_URLS`).
+
 ### 3. Buy Produce — from a Farmer Profile
 - [ ] From a Farmer Profile, tap **Buy Produce**.
 - [ ] Confirm the farmer's name is shown on the purchase screen.
@@ -93,9 +101,11 @@ Open `http://localhost:5000`. The app auto-detects `localhost` and connects to t
 
 ### 5. Farmer ID card (PDF)
 - [ ] From a Farmer Profile, open the Farmer Card view.
-- [ ] Confirm the on-screen preview shows FRN, name, village/district, and phone correctly.
-- [ ] Tap **Download PDF** and confirm a `<FRN>-malaika-honey-card.pdf` file downloads (CR80 card-sized, landscape) with the same details legible on a maroon background.
+- [ ] Confirm the on-screen preview shows FRN, name, village/district, phone, and a QR code correctly.
+- [ ] Decode the on-screen QR (any QR reader) and confirm it resolves to `<origin>/#/farmer/<FRN>` for that exact farmer.
+- [ ] Tap **Download PDF** and confirm a `<FRN>-malaika-honey-card.pdf` file downloads (CR80 card-sized, landscape) with the same details, including the QR code, legible on a maroon background.
 - [ ] Confirm it works without a printer connected (this is a client-side PDF generation, not a print-dialog flow).
+- [ ] Load the Farmer Card screen offline the very first time (before `qrcode` has ever been fetched on this device) and confirm the on-screen preview still renders (name/FRN/village/phone), just without the QR image, rather than a broken screen (`card.js`'s `renderCard` treats the QR generation failure as non-fatal). **Download PDF is expected to fail with a "Could not generate the PDF" toast in this specific case** (`qrcode` isn't cached, unlike `jspdf` which also isn't precached today — see [[Risk-Register]]) — confirm that failure is a clean toast, not a silent hang or a crash.
 
 ### 6. Offline behavior (critical — test on every release that touches data writes)
 - [ ] Sign in once while online, then load the app once more while online (so the shell is cached).

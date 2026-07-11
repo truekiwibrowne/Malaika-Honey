@@ -344,6 +344,32 @@ html, body {
   font-weight: 600;
 }
 
+.field-with-action {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.field-with-action .field {
+  flex: 1;
+  min-width: 0;
+}
+.field-with-action .scan-btn {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--brand-maroon);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.field-with-action .scan-btn:active {
+  background: var(--brand-rose-light);
+}
+
 /* Choice groups (radio-as-buttons) */
 .choice-group {
   display: flex;
@@ -494,6 +520,49 @@ html, body {
   background: var(--brand-maroon);
 }
 
+.qr-scanner-overlay {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 28px;
+  z-index: 1000;
+}
+
+.qr-scanner-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.qr-scanner-frame {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  border: 3px solid #fff;
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.45);
+}
+
+.qr-scanner-message {
+  position: relative;
+  color: #fff;
+  text-align: center;
+  font-size: 15px;
+  max-width: 300px;
+}
+
+.qr-scanner-overlay .btn {
+  position: relative;
+  max-width: 200px;
+}
+
 .reconcile-banner {
   display: flex;
   align-items: center;
@@ -596,6 +665,16 @@ html, body {
   padding-top: 8px;
 }
 .id-card .id-card-row .k { opacity: 0.75; }
+.id-card .id-card-qr {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 56px;
+  height: 56px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 4px;
+}
 
 .toast {
   position: fixed;

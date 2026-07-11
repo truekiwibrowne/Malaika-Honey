@@ -4,6 +4,18 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-11
+
+### Added
+- **QR code farmer lookup.** Every Farmer Card (`public/js/screens/card.js`) now carries a QR code encoding that farmer's full profile URL (e.g. `https://malaikahoney-78577.web.app/#/farmer/MHVOA000001`), on both the on-screen preview and the printable PDF. Encoding the full URL (not a bare FRN) means the same code works two ways: a generic phone camera or third-party QR app opens the PWA directly to that farmer; the new in-app scanner parses the FRN back out of the same URL.
+- **In-app QR scanner** (`public/js/lib/qrScanner.js`, `openQrScanner()`): a full-screen camera overlay (rear camera preferred) that decodes QR codes via `jsQR` and resolves with the farmer's FRN, or `null` on cancel/error. Falls back to a clear inline message if camera access is denied or unavailable, and if a scanned code doesn't decode to a recognizable farmer FRN — never a dead/frozen overlay.
+- **Scan-QR icon button** next to the search bar on both **Existing Farmer** (`findFarmer.js`) and the standalone **Buy Produce** entry screen (`buyProduce.js`'s `renderBuyProduceEntry`) — a successful scan navigates to the farmer's **Profile** screen (not directly into the purchase form), so staff pick "Buy Produce" from there themselves.
+- `qrScanner.js` and the pinned `jsqr` CDN module are precached by the service worker (`public/sw.js`) so in-app scanning still works offline after a first successful online use.
+- `looksLikeFrn` (`public/js/lib/db.js`) is now exported, reused by the scanner's FRN-extraction fallback instead of a second regex.
+
+### Known limitation
+Scanning a QR code while signed out lands on Home/Tutorial after sign-in rather than preserving the originally-scanned farmer route — session persistence means this only affects a fresh device/first sign-in, not normal daily use. See [[Risk-Register]].
+
 ## [0.6.5] - 2026-07-11
 
 ### Added

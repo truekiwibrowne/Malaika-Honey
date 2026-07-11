@@ -99,6 +99,8 @@ The `devices` collection itself is a best-effort, self-check side record, not lo
 
 **Old-format FRNs are untouched:** farmers already registered under the original shared-counter format (`MH000001`, `MH000002`, ...) keep that FRN forever — there is no migration. Both formats are permanent, opaque, unique strings and every lookup (`getFarmerByFrn`, `searchFarmers`, etc.) treats them identically.
 
+**QR code convention (Farmer Card):** the printable/on-screen Farmer Card (`public/js/screens/card.js`) encodes a farmer's full profile URL — `location.origin + '/#/farmer/' + frn` — as a QR code, not the bare FRN. This isn't stored anywhere (generated on the fly from the FRN whenever the card is viewed), but the exact URL format is a contract between `card.js` (`farmerProfileUrl()`) and the in-app scanner's parser (`public/js/lib/qrScanner.js`, `extractFrn()`, matching `#/farmer/([A-Za-z0-9]+)`) — changing one without the other breaks in-app scanning.
+
 ### Admin-editable reference data
 
 `products/{id}`, `grades/{id}`, `paymentMethods/{id}`, `farmSizes/{id}`, `districts/{id}`, and `newFarmerFields/{id}` are all real Firestore collections the field app reads from (via `public/js/lib/referenceData.js`), rather than hardcoded lists — an admin can add, edit, or deactivate entries directly today (Firebase Console's Firestore Data tab), ahead of the future admin app owning this UI. Every collection is small (a few dozen documents at most), so the app fetches each one whole and filters/sorts client-side rather than via a Firestore query — no composite indexes needed. `purchases.product`/`purchases.grade`/`purchases.paymentMethod` remain **plain strings**, not restricted enums, so new values read/write without any migration.

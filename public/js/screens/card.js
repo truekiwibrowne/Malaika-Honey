@@ -19,7 +19,23 @@ async function fetchAsDataUrl(url) {
   });
 }
 
-async function downloadFarmerCardPdf(farmer) {
+/**
+ * Same URL a generic phone camera/QR app would open directly to this
+ * farmer's profile - the in-app scanner (qrScanner.js) parses the FRN
+ * back out of this exact format, so changing it here must stay in sync
+ * with that parser.
+ */
+function farmerProfileUrl(farmer) {
+  return location.origin + '/#/farmer/' + farmer.frn;
+}
+
+async function generateQrDataUrl(text) {
+  const mod = await import('https://cdn.jsdelivr.net/npm/qrcode@1.5.3/+esm');
+  const QRCode = mod.default || mod;
+  return QRCode.toDataURL(text, { margin: 1, width: 240, color: { dark: '#7c2328', light: '#ffffff' } });
+}
+
+async function downloadFarmerCardPdf(farmer, qrDataUrl) {
   const [{ jsPDF }, iconDataUrl] = await Promise.all([
     import('https://cdn.jsdelivr.net/npm/jspdf@2.5.2/+esm'),
     fetchAsDataUrl('assets/logo/icon-square.png'),
@@ -49,6 +65,8 @@ async function downloadFarmerCardPdf(farmer) {
   doc.setLineWidth(0.2);
   doc.line(6, 33, 79.6, 33);
 
+  // Value column is narrower than the card's full width (was 79.6) to
+  // leave room for the QR code in the bottom-right corner.
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   const rows = [
@@ -61,9 +79,15 @@ async function downloadFarmerCardPdf(farmer) {
     doc.setTextColor(230, 210, 210);
     doc.text(label, 6, y);
     doc.setTextColor(255, 255, 255);
-    doc.text(String(value || '—'), 79.6, y, { align: 'right' });
+    doc.text(String(value || '—'), 58, y, { align: 'right' });
     y += 5.2;
   });
+
+  doc.addImage(qrDataUrl, 'PNG', 64, 33, 15.6, 15.6);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(4.5);
+  doc.setTextColor(230, 210, 210);
+  doc.text('Scan to find', 71.8, 50.5, { align: 'center' });
 
   doc.save(farmer.frn + '-malaika-honey-card.pdf');
 }
@@ -77,13 +101,23 @@ export async function renderCard(root, { frn }) {
     return;
   }
 
+  let qrDataUrl = null;
+  try {
+    qrDataUrl = await generateQrDataUrl(farmerProfileUrl(farmer));
+  } catch (err) {
+    console.error(err);
+    // Non-fatal - the card still works without the QR code, e.g. offline
+    // the first time this library hasn't been cached yet.
+  }
+
   const downloadBtn = el('button', {
     class: 'btn btn-maroon',
     onClick: async () => {
       downloadBtn.disabled = true;
       downloadBtn.textContent = 'Preparing PDF…';
       try {
-        await downloadFarmerCardPdf(farmer);
+        const qr = qrDataUrl || (await generateQrDataUrl(farmerProfileUrl(farmer)));
+        await downloadFarmerCardPdf(farmer, qr);
       } catch (err) {
         console.error(err);
         toast('Could not generate the PDF. Check your connection and try again.');
@@ -109,6 +143,7 @@ export async function renderCard(root, { frn }) {
       el('div', { class: 'id-card-row' }, [el('span', { class: 'k' }, 'Village'), el('span', {}, farmer.village)]),
       el('div', { class: 'id-card-row' }, [el('span', { class: 'k' }, 'District'), el('span', {}, farmer.district)]),
       el('div', { class: 'id-card-row' }, [el('span', { class: 'k' }, 'Phone'), el('span', {}, farmer.phone)]),
+      qrDataUrl ? el('img', { class: 'id-card-qr', src: qrDataUrl, alt: 'QR code to find this farmer' }) : null,
     ]),
     el('p', { class: 'hint' }, 'Give this card to the farmer to bring on future visits — it speeds up finding their record at the buying centre.'),
     downloadBtn

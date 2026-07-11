@@ -90,6 +90,16 @@ export const icons = {
       svgEl('path', { d: 'M6 10a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6H4c.5-.5 2-2 2-6z' }),
       svgEl('path', { d: 'M10 20a2 2 0 0 0 4 0' }),
     ]),
+
+  qrCode: () =>
+    icon([
+      svgEl('rect', { x: 3, y: 3, width: 6, height: 6 }),
+      svgEl('rect', { x: 15, y: 3, width: 6, height: 6 }),
+      svgEl('rect', { x: 3, y: 15, width: 6, height: 6 }),
+      svgEl('line', { x1: 15, y1: 15, x2: 15, y2: 21 }),
+      svgEl('line', { x1: 21, y1: 15, x2: 21, y2: 21 }),
+      svgEl('line', { x1: 15, y1: 21, x2: 21, y2: 21 }),
+    ]),
 };
 
 export function iconEl(name) {

@@ -4,6 +4,7 @@ import { getFarmerByFrnFromCache, savePurchase, searchFarmers } from '../lib/db.
 import { formatUgx } from '../lib/constants.js';
 import { getProducts, getGrades, getPaymentMethods } from '../lib/referenceData.js';
 import { iconEl } from '../lib/icons.js';
+import { openQrScanner } from '../lib/qrScanner.js';
 
 function resetSaveBtnLabel(btn) {
   btn.replaceChildren(iconEl('check'), document.createTextNode(' Save'));
@@ -217,11 +218,25 @@ export function renderBuyProduceEntry(root) {
     navigate('#/buy/' + frn);
   });
 
+  const scanBtn = el(
+    'button',
+    {
+      type: 'button',
+      class: 'scan-btn',
+      'aria-label': 'Scan QR code',
+      onClick: async () => {
+        const frn = await openQrScanner();
+        if (frn) navigate('#/farmer/' + frn);
+      },
+    },
+    [iconEl('qrCode')]
+  );
+
   mount(
     root,
     el('h1', {}, 'Buy Produce'),
     el('p', { class: 'welcome' }, 'Enter the farmer’s FRN, name or phone.'),
-    el('div', { class: 'field' }, [frnInput]),
+    el('div', { class: 'field-with-action' }, [el('div', { class: 'field' }, [frnInput]), scanBtn]),
     continueBtn,
     resultsBox
   );
