@@ -137,7 +137,12 @@ service cloud.firestore {
     // docs/Risk-Register.md.
     match /fieldOffices/{officeId} {
       allow read: if true;
-      allow write: if false;
+      // An admin can add a brand-new office from within the app (see
+      // adminApprovals.js's sibling screen addOffice.js) - editing or
+      // deactivating an existing one stays Console-only for now, same
+      // as every other reference-data collection.
+      allow create: if isAdmin();
+      allow update, delete: if false;
     }
 
     match /{document=**} {

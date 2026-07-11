@@ -40,6 +40,15 @@ Open `http://localhost:5000`. The app auto-detects `localhost` and connects to t
 - [ ] **Critical regression check:** create an office account, sign in with it (generating a pending request), then **as a different, already-admin account**, add that same office directly to `allowedStaff` via Console/emulator (simulating provisioning it there first) — its `signupRequests` entry is still `pending`. Now approve that stale request from **Approve Requests** and confirm it succeeds (the request resolves to `approved`, the `allowedStaff` document is left untouched) rather than a silent `permission-denied` — Firestore rules only allow `create` on `allowedStaff`, never `get` on someone else's document or `update`, so `approveRequest` must attempt the write and treat a `permission-denied` result as "already exists, nothing to grant," not pre-check existence with a `getDoc` (a `getDoc` on another account's document is itself denied by rules — this exact mistake shipped once and must not regress).
 - [ ] Confirm the "No pending sign-in requests." empty state is vertically **and** horizontally centered, not stuck at the top-left.
 
+### 0c. Add Office (admins only)
+- [ ] Sign in with a non-admin account and confirm **no** "Add Office" button appears on Home.
+- [ ] As an admin, tap **Add Office**, enter a new office name and a short (e.g. 4-digit) code, and submit. Confirm a success screen shows the office name and code.
+- [ ] Confirm the admin is **still signed in as themselves** afterward (check Home/the signed-in identity) — creating the new office's Auth account must never sign the admin out or switch them to the new account.
+- [ ] Confirm all three pieces exist: a `fieldOffices` document (with `order` one higher than the current max), a Firebase Auth user for `{officeId}@office.malaikahoney.local`, and an empty `allowedStaff` document for the same email.
+- [ ] Sign out, confirm the new office now appears in the Login dropdown, and confirm it can sign in with **just the short code** (no "Approval Needed" detour, no need to know about the internal `-mhfrm` padding).
+- [ ] Try adding an office with a name that already exists (case/spacing aside — e.g. "Kampala" again) and confirm a clear "already exists" error, with **no** duplicate Auth account or Firestore documents created.
+- [ ] Try submitting with the code field empty and confirm a clear validation error, no network call attempted.
+
 ### 1. New Farmer registration
 - [ ] From Home, tap **New Farmer**.
 - [ ] Leave a required field blank (e.g. Full Name) and confirm Save is blocked with a clear message.

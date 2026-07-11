@@ -30,6 +30,16 @@ If your account has been made an admin, you'll see an **Approve Requests** butto
 
 Only an existing admin can make an office an admin, and that step still has to be done directly in Firebase Console (see [[Config-Management]] "Field office provisioning") — this is deliberate, so admin access can never be granted from inside the app itself.
 
+## Adding a new office (admins only)
+
+1. On Home, tap **Add Office**.
+2. Enter the office's name (e.g. "Gulu") and the code staff there will use to sign in (e.g. "1215").
+3. Tap **Add Office**.
+
+That's it — the office can sign in right away, picking its name from the dropdown on Login and typing the code you just set. There's no separate approval step needed for offices added this way.
+
+To make a new office an admin too, that still has to be done in Firebase Console (see [[Config-Management]] "Field office provisioning").
+
 ## What the sync badge means
 
 Every screen except the login screen shows a small badge in the top-right corner:

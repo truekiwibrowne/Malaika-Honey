@@ -42,6 +42,10 @@ addRoute('/admin/approvals', async () => {
   const { renderAdminApprovals } = await import('./screens/adminApprovals.js');
   renderAdminApprovals(root);
 }, { headerMode: 'sub', backTo: '#/home' });
+addRoute('/admin/add-office', async () => {
+  const { renderAddOffice } = await import('./screens/addOffice.js');
+  renderAddOffice(root);
+}, { headerMode: 'sub', backTo: '#/home' });
 addRoute('/new-farmer', async () => {
   const { renderNewFarmer } = await import('./screens/newFarmer.js');
   renderNewFarmer(root);

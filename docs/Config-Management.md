@@ -65,12 +65,20 @@ See [[Release-Management]] for the full branching and deployment workflow.
 
 ## Field office provisioning (primary sign-in method)
 
-One shared code per office is how staff sign in today (see [[Database-Schema]] "Staff accounts"). Unlike every other sign-in method this app has had, this is **not self-service** — an admin sets both up ahead of time:
+One shared code per office is how staff sign in today (see [[Database-Schema]] "Staff accounts"). Unlike every other sign-in method this app has had, this is **not self-service** — an admin sets it up ahead of time, either in-app (normal way) or via Console (fallback, or for the very first admin).
+
+### In-app (normal way, once at least one admin exists)
+
+An admin taps **Add Office** on Home (`/admin/add-office`, `public/js/screens/addOffice.js`), enters the office's name and code, and taps **Add Office**. This does all three steps below in one go — creates the Firebase Auth account, the `fieldOffices` document, and the `allowedStaff` document — so the office can sign in immediately with no "Approval Needed" detour. The code the admin types is exactly what staff will type to sign in (e.g. `1215`); the `-mhfrm` padding described below happens automatically and staff never see it.
+
+To make a newly-added office an admin, that still requires the Console step 4 below — it can never be done from within the app, by design.
+
+### Via Firebase Console (fallback, or to make an office an admin)
 
 1. Firebase Console → **Firestore Database** → `fieldOffices` collection → **Add document**. Document ID: a short slug (e.g. `kampala`); fields: `label` (string, e.g. "Kampala"), `order` (number), `active` (boolean, `true`). This is what appears in the Login screen's office dropdown — remember it's the one collection anyone can read with no sign-in at all, so keep it to just names/ordering (see [[Risk-Register]]).
 2. Firebase Console → **Authentication** → **Add user**. Email: `{officeId}@office.malaikahoney.local` (the same slug as step 1, e.g. `kampala@office.malaikahoney.local`). Password: **the office's code plus `-mhfrm`** — e.g. if the office's code is `1213`, the actual Firebase password is `1213-mhfrm`. This fixed suffix is a padding workaround, not a secret: Firebase requires passwords of at least 6 characters, but office codes are meant to be short enough for staff to remember and type (e.g. 4 digits), so `public/js/lib/auth.js`'s `signInWithOfficeCode` silently appends the same fixed suffix before every sign-in attempt — staff only ever type the short code, never the suffix. Get this wrong (typo the suffix, or forget it) and that office's sign-in will fail with "Wrong code." even though the code itself was typed correctly.
 3. Firebase Console → **Firestore Database** → `allowedStaff` collection → **Add document**, same document ID as the email in step 2. No fields required — its mere existence grants access. Doing this **in the same session as step 2** means staff at that office never see an "Approval Needed" screen at all. (If this step is skipped, the office can still sign in and will land on "Approval Needed" — an admin can approve it later from **Approve Requests** in the app, same as any other pending request; see below.)
-4. **To make an office an admin** (able to see and act on **Approve Requests**), add a `role` field with string value `admin` to its `allowedStaff` document. This is the **only** way to grant admin — it can never be done from within the app itself, by design.
+4. **To make an office an admin** (able to see and act on **Approve Requests** and **Add Office**), add a `role` field with string value `admin` to its `allowedStaff` document. This is the **only** way to grant admin — it can never be done from within the app itself, by design.
 
 To revoke an office's access entirely, delete its `allowedStaff` document. To rotate an office's code (e.g. someone who knew it has left), reset that Auth user's password in Console to the new code + `-mhfrm` — there's no way to invalidate just one person's knowledge of a shared code, only the whole office's.
 

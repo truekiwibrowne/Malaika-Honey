@@ -11,6 +11,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import { doc, getDoc, getDocFromCache, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { auth, db } from './firebase.js';
+import { firebaseConfig } from '../config/firebase.config.js';
 
 const googleProvider = new GoogleAuthProvider();
 // Always show the account chooser, even if the browser only knows one
@@ -63,6 +64,40 @@ const OFFICE_CODE_PAD = '-mhfrm';
 
 function officeCodeToPassword(code) {
   return code + OFFICE_CODE_PAD;
+}
+
+const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '';
+const AUTH_REST_BASE = isLocalhost
+  ? 'http://localhost:9099/identitytoolkit.googleapis.com/v1'
+  : 'https://identitytoolkit.googleapis.com/v1';
+const AUTH_REST_KEY = isLocalhost ? 'fake-api-key' : firebaseConfig.apiKey;
+
+function friendlyOfficeCreateError(message) {
+  if (message && message.startsWith('EMAIL_EXISTS')) return 'An office with this name already exists.';
+  if (message && message.startsWith('WEAK_PASSWORD')) return 'Enter a code.';
+  return 'Could not add this office. Please try again.';
+}
+
+/**
+ * Admin-only: creates a brand-new field office's Firebase Auth account
+ * from within the app (see public/js/screens/addOffice.js for the rest
+ * of the provisioning flow - the matching fieldOffices/allowedStaff
+ * documents). Deliberately calls the Auth REST API directly instead of
+ * the SDK's createUserWithEmailAndPassword - that SDK call immediately
+ * signs in as whatever account it just created, which would kick the
+ * admin out of their own session. A plain REST call never touches the
+ * SDK's local auth state at all, so the admin stays signed in throughout.
+ */
+export async function createOfficeAccount(officeId, code) {
+  const res = await fetch(AUTH_REST_BASE + '/accounts:signUp?key=' + AUTH_REST_KEY, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: officeIdToEmail(officeId), password: officeCodeToPassword(code) }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(friendlyOfficeCreateError(data.error && data.error.message));
+  }
 }
 
 function friendlyAuthError(err) {

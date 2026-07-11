@@ -72,6 +72,7 @@ export function renderHome(root) {
   const approveBtn = isAdmin
     ? el('a', { href: '#/admin/approvals', class: 'btn btn-outline' }, [iconEl('idCard'), 'Approve Requests'])
     : null;
+  const addOfficeBtn = isAdmin ? el('a', { href: '#/admin/add-office', class: 'btn btn-outline' }, [iconEl('plus'), 'Add Office']) : null;
   const notifToggle = renderNotifToggle(isAdmin, user);
 
   mount(
@@ -97,6 +98,7 @@ export function renderHome(root) {
         [iconEl('honeyJar'), 'Buy Produce']
       ),
       approveBtn,
+      addOfficeBtn,
       notifToggle,
     ]),
     el('button', { type: 'button', class: 'btn btn-secondary', onClick: handleSignOut }, [iconEl('logout'), 'Sign Out']),

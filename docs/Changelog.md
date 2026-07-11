@@ -4,6 +4,13 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-07-11
+
+### Added
+- **"Add Office" button on Home (admin-only)**, opening `/admin/add-office`: an admin enters a new office's name and code and the app provisions all three pieces it needs in one step — the Firebase Auth account, the `fieldOffices` document (Login dropdown entry), and the `allowedStaff` document (so the office never sees "Approval Needed"). Replaces the previous Console-only-per-office workflow for the normal case; the Console recipe (see [[Config-Management]] "Field office provisioning") remains as a fallback and is still required to grant the `admin` role itself.
+- **`createOfficeAccount`** (`public/js/lib/auth.js`): creates a new office's Firebase Auth account via a direct call to the Auth REST API rather than the SDK's `createUserWithEmailAndPassword`, specifically because that SDK call signs in as whatever account it just created — which would kick the admin performing the action out of their own session. A plain REST call never touches the SDK's local auth state.
+- `firestore.rules`: `fieldOffices` now allows `create` (not `update`/`delete`) for an admin, matching the pattern already used for `allowedStaff`.
+
 ## [0.6.4] - 2026-07-10
 
 ### Added
