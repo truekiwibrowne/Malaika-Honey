@@ -72,6 +72,16 @@ export const icons = {
 
   back: () => icon([svgEl('polyline', { points: '15,5 8,12 15,19' })]),
 
+  forward: () => icon([svgEl('polyline', { points: '9,5 16,12 9,19' })]),
+
+  calendar: () =>
+    icon([
+      svgEl('rect', { x: 3, y: 5, width: 18, height: 16, rx: 2 }),
+      svgEl('line', { x1: 3, y1: 10, x2: 21, y2: 10 }),
+      svgEl('line', { x1: 8, y1: 3, x2: 8, y2: 7 }),
+      svgEl('line', { x1: 16, y1: 3, x2: 16, y2: 7 }),
+    ]),
+
   logout: () =>
     icon([
       svgEl('path', { d: 'M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3' }),

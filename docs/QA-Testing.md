@@ -66,6 +66,29 @@ Open `http://localhost:5000`. The app auto-detects `localhost` and connects to t
 - [ ] Confirm New Farmer and Buy Produce still render with today's exact defaults when a reference collection is completely empty (the fallback path) — this is the state a fresh production deploy starts in.
 - [ ] Confirm the New Farmer form still works fully offline (`disableNetwork`) once its reference collections have been fetched at least once (served from Firestore's local cache, no fallback needed).
 
+### 1c. Date of Birth field (in-app picker, no native date input)
+- [ ] On New Farmer, confirm Date of Birth is a **text** field showing `DD/MM/YYYY` with a calendar button beside it — **not** a native date input (the whole point: Android's native wheel picker made a birth year decades back painfully slow to reach).
+- [ ] Type `15031985` and confirm slashes appear automatically as you type (`15` → `15/3` → `15/03/1985`), with no error shown mid-entry.
+- [ ] Type an impossible date (`31/02/1990`, `29/02/2023`, month `13`) and confirm a clear "Enter the date as DD/MM/YYYY." rather than it silently rolling over to a nearby real date.
+- [ ] Type a future date and confirm "That date is in the future."
+- [ ] Tap the calendar button with the field empty: confirm it opens on a **year grid** (24 years at a glance, newest first) with working back/forward paging, then month, then a correct day calendar — check a known date (1 March 1985 was a Friday).
+- [ ] Tap the calendar button with a date already set and confirm it opens straight to that month with the day highlighted, and that the year/month breadcrumb chips jump back a step.
+- [ ] Pick a date, save the farmer, and confirm the stored `dateOfBirth` is ISO `YYYY-MM-DD` (Firestore console/emulator) — the same format the old native input produced.
+- [ ] **On a real Android device**, confirm no OS wheel picker appears at any point and the numeric keypad opens when tapping the field.
+
+### 1d. Edit Farmer + audit trail
+- [ ] From a Farmer Profile, confirm an **Edit Details** button appears and opens the edit form.
+- [ ] Confirm every field is prefilled from the stored record (name, phone, date of birth shown as `DD/MM/YYYY`, village, district, hives, toggles).
+- [ ] Change several fields, save, and confirm it returns to the Farmer Profile showing the new values.
+- [ ] In the Firestore console/emulator, confirm a `farmerEdits` document was created listing **only** the fields that actually changed, each with `from`/`to`, plus `editedBy` (the office id), `editedByEmail`, `editedAtLocal`, `deviceCode`.
+- [ ] Save again **without changing anything** and confirm **no** new `farmerEdits` document is written (no audit noise).
+- [ ] Confirm the edit history is **not visible anywhere in the app** — it is intentionally reserved for the future desktop app.
+- [ ] Change a farmer's phone to one already registered to someone else and confirm it's blocked with a clear message naming that farmer; confirm saving with the farmer's **own unchanged** number is *not* blocked.
+- [ ] Set District to "Other" with free text, save, then reopen Edit and confirm it reloads as "Other" with the text still there — editing an unrelated field must never silently blank it.
+- [ ] Open Edit for a farmer registered before a schema field existed (or otherwise missing values) and confirm empty controls, never the literal text "undefined".
+- [ ] Edit a farmer while **offline** and confirm it saves instantly, and that once synced the `farmerEdits` document has `syncedFromOffline: true` and a usable `editedAtLocal` (its `editedAt` server timestamp is null until sync — this is why both exist).
+- [ ] Confirm the FRN is not editable anywhere on the form, and that editing a farmer never changes their lifetime stats, `registeredBy`, or `registeredAt`.
+
 ### 2. Existing Farmer
 - [ ] From Home, tap **Existing Farmer**.
 - [ ] Search a partial name (e.g. "John") and confirm multiple matching results appear.

@@ -51,7 +51,7 @@ This backlog is a living document — update it as priorities shift. See [[Chang
 | 3.1 | Desktop-focused admin web app (separate deploy, same Firestore) | See [[System-Architecture]] |
 | 3.2 | Reports dashboard: today's purchases, farmers registered, product totals, top suppliers | Mirrors the "Management Database" mock-up |
 | 3.3 | Export to Excel/CSV | |
-| 3.4 | Farmer record edit/merge/deactivate | |
+| 3.4 | Farmer record merge/deactivate, and a UI for reading back the edit history | **Edit** itself shipped in the field app in v0.8.0 (Farmer Profile → **Edit Details**), writing an append-only `farmerEdits` audit trail. What's still missing here: merging duplicate farmer records, deactivating a record, and a screen that actually *reads* `farmerEdits` back — nothing displays that history today (see [[Database-Schema]] "farmerEdits" and [[Risk-Register]] R33) |
 | 3.5 | Bonus/incentive payments tied to FRN quality & quantity history | `incentives` collection (see [[Database-Schema]]) |
 
 ## Milestone 4 — M&E (Monitoring & Evaluation)

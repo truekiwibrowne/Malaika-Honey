@@ -79,11 +79,36 @@ Use this every time a returning farmer arrives, before recording a purchase.
 2. Type part of their name, their FRN, or their phone number.
 3. Tap their name in the results list.
 4. Their profile opens, showing their village, phone, lifetime honey delivered, date of their last delivery, and total paid to date.
-5. From here, tap **Buy Produce** to record today's delivery, or **History** to see their past deliveries. Correcting a farmer's details isn't available in this app yet — that's handled by admin staff in the management app (see [[Backlog]]).
+5. From here, tap **Buy Produce** to record today's delivery, **History** to see their past deliveries, or **Edit Details** to correct their information (see below).
 
 **If a farmer presents their card:** check the name and details on it match what comes up when you search their FRN, before processing their purchase.
 
 **This needs internet.** Searching for a farmer only works while online — it looks up records that may not be saved on your phone yet. If you're offline and need to record a purchase for a farmer who isn't already on your phone from a previous visit, use **Buy Produce** directly from Home instead (see below).
+
+## Correcting a farmer's details
+
+Use this when something on a farmer's record is wrong or has changed — a new phone number, a corrected spelling, a wrong date of birth.
+
+1. Find the farmer (see **Existing Farmer** above) and open their profile.
+2. Tap **Edit Details**.
+3. The form opens already filled in with what's currently on file. Change whatever needs correcting.
+4. Tap **Save Changes**.
+
+A few things to know:
+
+- **The FRN never changes.** It stays with the farmer permanently, whatever else you correct.
+- **Phone numbers still have to be unique.** If you type a number that already belongs to a different farmer, the app will refuse to save and tell you who has it.
+- **Every change is recorded** — what was changed, what it was before, when, and which office made the change. You won't see this history in the app; it's kept so management can review corrections later. This means an accidental change can be traced and put right, so don't be afraid to fix genuine mistakes — but don't use Edit Details to turn one farmer's record into a different farmer. Register a new farmer for that.
+- **This works offline.** Changes save on the phone immediately and upload when you're back online.
+
+## Entering a date of birth
+
+Date of Birth (and any other date field) can be filled in two ways:
+
+- **Type it** — tap the box and type the numbers; the app adds the slashes for you, so `15031985` becomes `15/03/1985`. This is usually the fastest way when the farmer knows their date of birth.
+- **Tap the calendar button** beside the box — pick the **year** first (shown as a grid, with arrows to page back through earlier years), then the **month**, then the **day**.
+
+If you type a date that can't exist (like 31 February) or a date in the future, the app will tell you rather than saving something wrong.
 
 ## Recording a purchase (Buy Produce)
 

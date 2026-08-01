@@ -62,6 +62,10 @@ addRoute('/farmer/:frn', async (params) => {
   const { renderFarmerProfile } = await import('./screens/farmerProfile.js');
   renderFarmerProfile(root, params);
 }, { headerMode: 'sub', backTo: '#/find-farmer' });
+addRoute('/farmer/:frn/edit', async (params) => {
+  const { renderEditFarmer } = await import('./screens/editFarmer.js');
+  renderEditFarmer(root, params);
+}, { headerMode: 'sub', backTo: (params) => '#/farmer/' + params.frn });
 addRoute('/buy', async () => {
   const { renderBuyProduceEntry } = await import('./screens/buyProduce.js');
   renderBuyProduceEntry(root);

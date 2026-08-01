@@ -4,6 +4,18 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-01
+
+### Added
+- **In-app date picker** (`public/js/lib/datePicker.js`), replacing the native `<input type="date">` for every schema-driven date field. The native control was the problem: on Android it renders as scrolling wheels, so reaching a birth year decades back meant spinning through hundreds of months one at a time. Staff can now either **type** the date directly (`DD/MM/YYYY`, numeric keypad, slashes inserted automatically as they type) or pick it in a few taps — a paged grid of 24 years, then months, then a proper calendar. Values are still stored as ISO `YYYY-MM-DD`, exactly what the native input produced, so nothing downstream changed.
+- **Edit Farmer** (`public/js/screens/editFarmer.js`, route `#/farmer/:frn/edit`): an **Edit Details** button on Farmer Profile opens the same schema-driven form as New Farmer, prefilled from the stored record. The one-registration-per-phone rule is enforced here too (only re-checked when the number actually changed, so a farmer's own number never conflicts with itself).
+- **`farmerEdits` audit trail** — every save records which fields changed (with before/after values), when, the office account that made the change, and the device. Deliberately **not surfaced anywhere in the field app**; it is kept for the future desktop/admin app. `firestore.rules` makes the collection append-only (create + read for approved staff, never update or delete) — an audit log that can be rewritten after the fact isn't one.
+
+### Changed
+- The schema-driven farmer form moved out of `newFarmer.js` into a shared `public/js/lib/farmerForm.js` used by both New Farmer and Edit Farmer, so the two can't drift apart and an admin adding a `newFarmerFields` entry gets it on both screens with no code change.
+- `db.js` now builds a farmer's editable fields through one shared `buildEditableFarmerFields()` used by both `createFarmer` and `updateFarmer`, so the form-value → stored-shape mapping can't disagree between create and edit. Fields the form never touches (`frn`, `registeredBy`/`registeredAt`, `lifetimeStats`, `status`) are outside that mapping and so can't be clobbered by an edit.
+- Re-opening Edit Farmer for a farmer whose District (or any option-backed field) was saved as a free-text "Other" value now correctly reloads it as "Other" with the text preserved, instead of silently blanking it when an unrelated field is edited.
+
 ## [0.7.0] - 2026-07-11
 
 ### Added

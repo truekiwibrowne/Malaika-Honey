@@ -370,6 +370,147 @@ html, body {
   background: var(--brand-rose-light);
 }
 
+/* In-app date field + picker (see public/js/lib/datePicker.js) - replaces
+   the native date input, whose Android wheel UI made picking a birth year
+   decades back painfully slow. */
+.date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.date-field-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.date-field-row input {
+  flex: 1;
+  min-width: 0;
+}
+.date-field-btn {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--brand-maroon);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.date-field-btn:active {
+  background: var(--brand-rose-light);
+}
+.date-field-error {
+  color: var(--color-red);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.date-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.date-picker-modal {
+  width: 100%;
+  max-width: 360px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.date-picker-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.date-picker-crumb {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.date-picker-crumb-btn {
+  background: var(--brand-rose-light);
+  color: var(--brand-maroon);
+  border: none;
+  border-radius: var(--radius-sm, 8px);
+  padding: 4px 10px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+}
+.date-picker-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 15px;
+}
+.date-picker-page-btn {
+  width: 36px;
+  height: 36px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--brand-maroon);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.date-picker-page-btn:disabled {
+  opacity: 0.35;
+}
+.date-picker-grid {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+.date-picker-grid-year { grid-template-columns: repeat(4, 1fr); }
+.date-picker-grid-month { grid-template-columns: repeat(3, 1fr); }
+.date-picker-grid-day { grid-template-columns: repeat(7, 1fr); }
+.date-picker-cell {
+  min-height: 42px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 0;
+}
+.date-picker-cell:active {
+  background: var(--brand-rose-light);
+}
+.date-picker-cell.selected {
+  background: var(--brand-maroon);
+  border-color: var(--brand-maroon);
+  color: #fff;
+}
+.date-picker-cell:disabled {
+  opacity: 0.3;
+}
+.date-picker-weekday {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  padding-bottom: 2px;
+}
+
 /* Choice groups (radio-as-buttons) */
 .choice-group {
   display: flex;

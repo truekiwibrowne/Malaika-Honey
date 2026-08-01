@@ -52,6 +52,7 @@ export async function renderFarmerProfile(root, { frn }) {
 
     el('a', { href: '#/buy/' + farmer.frn, class: 'btn btn-yellow' }, [iconEl('honeyJar'), 'Buy Produce']),
     el('a', { href: '#/history/' + farmer.frn, class: 'btn btn-blue' }, [iconEl('history'), 'History']),
-    el('a', { href: '#/card/' + farmer.frn, class: 'btn btn-outline' }, [iconEl('idCard'), 'Farmer Card'])
+    el('a', { href: '#/card/' + farmer.frn, class: 'btn btn-outline' }, [iconEl('idCard'), 'Farmer Card']),
+    el('a', { href: '#/farmer/' + farmer.frn + '/edit', class: 'btn btn-secondary' }, [iconEl('edit'), 'Edit Details'])
   );
 }

@@ -84,6 +84,26 @@ One document per honey/product intake. Document ID = Firestore auto-ID.
 
 **Reconciling an unverified purchase:** `resolveUnverifiedPurchase(purchaseId, confirmedFrn)` (in `public/js/lib/db.js`) sets `frn`/`farmerNameSnapshot` to the confirmed farmer, flips `frnUnverified` to `false`, and applies the `lifetimeStats` `increment()` that was deferred at save time. Used by the `/reconcile` screen, reachable from a banner on Home whenever unresolved purchases exist.
 
+### `farmerEdits/{editId}`
+
+Append-only audit trail of staff edits to farmer records, written by `updateFarmer` (`public/js/lib/db.js`) every time the Edit Farmer screen saves an actual change. Auto-generated document ID.
+
+| Field | Type | Notes |
+|---|---|---|
+| `schemaVersion` | number | Currently `1` |
+| `frn` | string | The farmer edited — plain string, same convention as `purchases.frn` |
+| `changes` | array of maps | One entry per changed field: `{ field, label, from, to }`. `field` is the dotted path into the farmer document (`phone`, `hives.traditional`, `customFields.someId`); `label` is a human-readable name so the record reads on its own without joining against `newFarmerFields` |
+| `editedBy` | string | The signed-in identity as staff know it — for the primary office+code sign-in this is the office id (e.g. `kampala`) |
+| `editedByEmail` | string | The exact account identifier, synthetic domain and all (e.g. `kampala@office.malaikahoney.local`) |
+| `editedAt` | timestamp | Server timestamp — **null until the write syncs**, so never rely on it alone |
+| `editedAtLocal` | string | Client ISO timestamp, always present. The fallback for offline edits, and the field that reveals how long an edit sat unsynced |
+| `deviceCode` | string | Which device made the edit (see `devices/{deviceCode}`) |
+| `syncedFromOffline` | boolean | `true` if the device was offline when the edit was made |
+
+**Nothing in the field app reads this collection back** — there is deliberately no in-app edit-history screen. It exists for the future desktop/admin app, which is why `read` is permitted (that app will use the same staff credentials) while `update` and `delete` are rejected outright in `firestore.rules`: an audit log that can be rewritten after the fact isn't an audit log. Only fields that genuinely differ are recorded, and a save with no changes writes nothing at all, so the collection stays free of no-op noise.
+
+Note this records *that* a value changed, not a full snapshot of the farmer at each point in time — the farmer document always holds current values only. Replaying `changes` backwards from the current record is how the desktop app would reconstruct history.
+
 ### `devices/{deviceCode}`
 
 Registry of device codes used to mint collision-free FRNs without any server coordination at write time.

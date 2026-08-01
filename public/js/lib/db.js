@@ -16,7 +16,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { db } from './firebase.js';
 import { todayIso } from './constants.js';
-import { currentDisplayName } from './auth.js';
+import { currentDisplayName, currentUserEmail } from './auth.js';
 import { getDeviceCode, nextLocalSequence } from './device.js';
 import { trackWrite } from './sync.js';
 
@@ -74,31 +74,45 @@ const KNOWN_FIELD_IDS = [
 ];
 
 /**
- * Creates a new farmer document. The FRN is minted entirely client-side
- * (device code + a locally-incremented sequence, see device.js) so this
- * never needs a server round-trip - unlike a transaction (which fails
- * outright when offline instead of queuing), this plain setDoc queues
- * correctly and syncs automatically once a connection is available. The
- * write is intentionally not awaited (see trackWrite above) so this
- * resolves instantly, online or off.
- *
- * `fieldValues` is a flat { fieldId: rawValue } map straight from the
- * dynamic New Farmer form (see newFarmer.js and referenceData.js
- * getNewFarmerFields) - Full Name and Phone are passed separately since
- * they're fixed, always-required inputs outside that schema.
+ * Human-readable names for the editable farmer fields, used only to make
+ * `farmerEdits` audit records readable on their own (see updateFarmer) -
+ * the future desktop app shouldn't have to join against the
+ * `newFarmerFields` schema just to render an edit history. Anything not
+ * listed (an admin-added custom field) falls back to its raw key.
  */
-export async function createFarmer({ fullName, phone, fieldValues = {}, registeredBy }) {
-  const frn = formatFrn();
-  const farmerRef = doc(db, 'farmers', frn);
+const FIELD_LABELS = {
+  fullName: 'Full Name',
+  phone: 'Phone Number',
+  dateOfBirth: 'Date of Birth',
+  gender: 'Gender',
+  email: 'Email Address',
+  village: 'Village',
+  district: 'District',
+  farmSize: 'Farm Size',
+  'hives.traditional': 'Traditional Hives',
+  'hives.ktb': 'KTB Hives',
+  'hives.modern': 'Modern Hives',
+  otherCropsOrLivestock: 'Other Crops or Livestock',
+  avgHarvestKgPerYear: 'Average Honey Harvest',
+  usesChemicals: 'Uses chemicals/pesticides?',
+  wantsTraining: 'Interested in training?',
+};
 
+/**
+ * The subset of a farmer document that staff can actually edit, built from
+ * a flat `{ fieldId: rawValue }` map straight off the form (see
+ * farmerForm.js). Shared by createFarmer and updateFarmer so the two can
+ * never disagree about how a form value maps onto the stored shape -
+ * fields the form never touches (frn, registeredBy/At, lifetimeStats,
+ * status, ...) are deliberately NOT in here, so an edit can't clobber them.
+ */
+function buildEditableFarmerFields({ fullName, phone, fieldValues = {} }) {
   const customFields = {};
   for (const [fieldId, value] of Object.entries(fieldValues)) {
     if (!KNOWN_FIELD_IDS.includes(fieldId)) customFields[fieldId] = value;
   }
 
-  trackWrite(setDoc(farmerRef, {
-    schemaVersion: 1,
-    frn,
+  return {
     fullName,
     fullNameLower: fullName.trim().toLowerCase(),
     phone,
@@ -118,6 +132,93 @@ export async function createFarmer({ fullName, phone, fieldValues = {}, register
     usesChemicals: fieldValues.usesChemicals === 'yes',
     wantsTraining: fieldValues.wantsTraining === 'yes',
     customFields,
+  };
+}
+
+/**
+ * Inverse of buildEditableFarmerFields: turns a stored farmer document
+ * back into the flat `{ fieldId: value }` shape the form works in, so Edit
+ * Farmer can prefill every control. Booleans become the 'yes'/'no' ids the
+ * toggle chips use; missing values become '' rather than undefined so the
+ * inputs render empty instead of "undefined".
+ */
+export function farmerToFieldValues(farmer) {
+  const hives = farmer.hives || {};
+  return {
+    dateOfBirth: farmer.dateOfBirth || '',
+    gender: farmer.gender || '',
+    email: farmer.email || '',
+    village: farmer.village || '',
+    district: farmer.district || '',
+    farmSize: farmer.farmSize || '',
+    hivesTraditional: hives.traditional ?? '',
+    hivesKtb: hives.ktb ?? '',
+    hivesModern: hives.modern ?? '',
+    otherCropsOrLivestock: farmer.otherCropsOrLivestock || '',
+    avgHarvestKgPerYear: farmer.avgHarvestKgPerYear ?? '',
+    usesChemicals: farmer.usesChemicals ? 'yes' : 'no',
+    wantsTraining: farmer.wantsTraining ? 'yes' : 'no',
+    ...(farmer.customFields || {}),
+  };
+}
+
+/** Flattens the editable field set to `{ 'dotted.key': value }` for diffing. */
+function flattenForDiff(fields) {
+  const flat = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if (key === 'fullNameLower') continue; // derived from fullName, not its own edit
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      for (const [subKey, subValue] of Object.entries(value)) {
+        flat[key + '.' + subKey] = subValue;
+      }
+    } else {
+      flat[key] = value;
+    }
+  }
+  return flat;
+}
+
+/** Field-by-field diff of two editable field sets, as audit-log entries. */
+function diffFarmerFields(before, after) {
+  const flatBefore = flattenForDiff(before);
+  const flatAfter = flattenForDiff(after);
+  const keys = new Set([...Object.keys(flatBefore), ...Object.keys(flatAfter)]);
+  const changes = [];
+
+  for (const key of keys) {
+    const from = flatBefore[key] ?? null;
+    const to = flatAfter[key] ?? null;
+    // Compared as strings so 0 vs '0' or null vs '' don't register as
+    // edits - staff retyping the same value must not create audit noise.
+    if (String(from ?? '') === String(to ?? '')) continue;
+    changes.push({ field: key, label: FIELD_LABELS[key] || key, from, to });
+  }
+
+  return changes.sort((a, b) => a.field.localeCompare(b.field));
+}
+
+/**
+ * Creates a new farmer document. The FRN is minted entirely client-side
+ * (device code + a locally-incremented sequence, see device.js) so this
+ * never needs a server round-trip - unlike a transaction (which fails
+ * outright when offline instead of queuing), this plain setDoc queues
+ * correctly and syncs automatically once a connection is available. The
+ * write is intentionally not awaited (see trackWrite above) so this
+ * resolves instantly, online or off.
+ *
+ * `fieldValues` is a flat { fieldId: rawValue } map straight from the
+ * dynamic New Farmer form (see newFarmer.js and referenceData.js
+ * getNewFarmerFields) - Full Name and Phone are passed separately since
+ * they're fixed, always-required inputs outside that schema.
+ */
+export async function createFarmer({ fullName, phone, fieldValues = {}, registeredBy }) {
+  const frn = formatFrn();
+  const farmerRef = doc(db, 'farmers', frn);
+
+  trackWrite(setDoc(farmerRef, {
+    schemaVersion: 1,
+    frn,
+    ...buildEditableFarmerFields({ fullName, phone, fieldValues }),
     signatureDate: todayIso(),
     photoUrl: null,
     status: 'active',
@@ -132,6 +233,68 @@ export async function createFarmer({ fullName, phone, fieldValues = {}, register
   }), 'farmer ' + frn);
 
   return frn;
+}
+
+/**
+ * Applies staff edits to an existing farmer and records what changed in
+ * the append-only `farmerEdits` collection (see docs/Database-Schema.md).
+ *
+ * The audit record is the point of this function - the farmer document
+ * itself only ever carries current values, so without it there'd be no way
+ * to answer "who changed this phone number, and what was it before?".
+ * Nothing in this app reads `farmerEdits` back; it exists for the future
+ * desktop/admin app, which is why there's no in-app history screen.
+ *
+ * `existing` is the farmer document as it was when the form was opened -
+ * passed in rather than re-read here so the diff is against exactly what
+ * the staff member saw, and so this stays a pure write (no round-trip)
+ * offline. Returns `{ changed: false }` when nothing actually differs, so
+ * a no-op save doesn't write an empty audit entry.
+ *
+ * Both writes are fired without awaiting (see the trackWrite note above),
+ * so this resolves instantly whether online or off.
+ */
+export async function updateFarmer({ frn, fullName, phone, fieldValues = {}, existing }) {
+  const farmerId = frn.trim().toUpperCase();
+  const nextFields = buildEditableFarmerFields({ fullName, phone, fieldValues });
+  const previousFields = buildEditableFarmerFields({
+    fullName: existing.fullName || '',
+    phone: existing.phone || '',
+    fieldValues: farmerToFieldValues(existing),
+  });
+
+  const changes = diffFarmerFields(previousFields, nextFields);
+  if (!changes.length) return { changed: false, changes: [] };
+
+  trackWrite(
+    updateDoc(doc(db, 'farmers', farmerId), { ...nextFields, updatedAt: serverTimestamp() }),
+    'farmer ' + farmerId
+  );
+
+  const editRef = doc(collection(db, 'farmerEdits'));
+  trackWrite(
+    setDoc(editRef, {
+      schemaVersion: 1,
+      frn: farmerId,
+      changes,
+      // currentDisplayName() resolves to the office id for an office
+      // account (the primary sign-in method), which is the accountability
+      // unit this app actually has - see docs/Risk-Register.md R24.
+      editedBy: currentDisplayName(),
+      editedByEmail: currentUserEmail(),
+      deviceCode: getDeviceCode(),
+      // serverTimestamp() stays null in the local cache until this syncs,
+      // so an offline edit would otherwise have no usable date at all -
+      // editedAtLocal is always present and is what the desktop app should
+      // fall back to (and what reveals a long offline gap).
+      editedAt: serverTimestamp(),
+      editedAtLocal: new Date().toISOString(),
+      syncedFromOffline: !navigator.onLine,
+    }),
+    'farmer edit ' + editRef.id
+  );
+
+  return { changed: true, changes };
 }
 
 /**

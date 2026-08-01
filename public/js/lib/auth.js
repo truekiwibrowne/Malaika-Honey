@@ -263,6 +263,16 @@ export function currentDisplayName() {
   return user.email ? user.email.split('@')[0] : user.uid;
 }
 
+/**
+ * The signed-in account's raw email (synthetic domain and all - e.g.
+ * `kampala@office.malaikahoney.local`). Unlike currentDisplayName(), this
+ * is the exact, unambiguous account identifier, which is what an audit
+ * record wants - see db.js updateFarmer / the `farmerEdits` collection.
+ */
+export function currentUserEmail() {
+  return auth.currentUser ? auth.currentUser.email || null : null;
+}
+
 const SYNTHETIC_EMAIL_DOMAINS = [OFFICE_EMAIL_DOMAIN, PHONE_EMAIL_DOMAIN];
 
 /**

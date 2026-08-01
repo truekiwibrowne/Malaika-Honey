@@ -67,6 +67,19 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Append-only audit trail of staff edits to farmer records (see
+    // docs/Database-Schema.md "farmerEdits" and db.js updateFarmer).
+    // Nothing in the field app reads these back - they exist for the
+    // future desktop/admin app - but read is allowed so that app can use
+    // the same staff credentials. Deliberately NO update or delete: an
+    // audit log that can be rewritten after the fact isn't one.
+    match /farmerEdits/{editId} {
+      allow read: if isApprovedStaff();
+      allow create: if isApprovedStaff()
+        && request.resource.data.keys().hasAll(['frn', 'changes', 'editedBy']);
+      allow update, delete: if false;
+    }
+
     match /purchases/{purchaseId} {
       allow read: if isApprovedStaff();
       allow create: if isApprovedStaff()
