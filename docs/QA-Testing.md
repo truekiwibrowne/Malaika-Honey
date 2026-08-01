@@ -88,6 +88,7 @@ Open `http://localhost:5000`. The app auto-detects `localhost` and connects to t
 - [ ] Open Edit for a farmer registered before a schema field existed (or otherwise missing values) and confirm empty controls, never the literal text "undefined".
 - [ ] Edit a farmer while **offline** and confirm it saves instantly, and that once synced the `farmerEdits` document has `syncedFromOffline: true` and a usable `editedAtLocal` (its `editedAt` server timestamp is null until sync — this is why both exist).
 - [ ] Confirm the FRN is not editable anywhere on the form, and that editing a farmer never changes their lifetime stats, `registeredBy`, or `registeredAt`.
+- [ ] **Atomicity regression check:** the farmer update and its `farmerEdits` record are written in one `writeBatch` and must stay that way. After any change to `updateFarmer`, confirm that a *rejected* write leaves the farmer document **unchanged** — never the farmer updated with no audit record (this shipped broken once in v0.8.0 and must not regress). Easiest check: temporarily tighten the `farmerEdits` rule in the emulator so the create fails, save an edit, and confirm the farmer's old values survive and an error is shown.
 
 ### 2. Existing Farmer
 - [ ] From Home, tap **Existing Farmer**.

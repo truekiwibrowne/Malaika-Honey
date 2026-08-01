@@ -13,6 +13,7 @@ import {
   getDocs,
   getDocsFromCache,
   serverTimestamp,
+  writeBatch,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { db } from './firebase.js';
 import { todayIso } from './constants.js';
@@ -251,8 +252,18 @@ export async function createFarmer({ fullName, phone, fieldValues = {}, register
  * offline. Returns `{ changed: false }` when nothing actually differs, so
  * a no-op save doesn't write an empty audit entry.
  *
- * Both writes are fired without awaiting (see the trackWrite note above),
- * so this resolves instantly whether online or off.
+ * The farmer update and its audit record go in ONE `writeBatch` so they
+ * commit together or not at all. They were originally two independent
+ * writes, which meant a rejected audit write still left the farmer
+ * changed - a silent edit with no trail, exactly the thing this audit
+ * record exists to prevent. Note a batch is not a transaction: it needs no
+ * server read, so unlike `runTransaction` it queues correctly offline (see
+ * the note on transactions in savePurchase / docs/System-Architecture.md).
+ *
+ * The commit is not awaited (see the trackWrite note above) so this
+ * resolves instantly online or off, but it IS returned as `committed` so
+ * the caller can surface a genuine server rejection to the user - offline
+ * that promise simply stays pending rather than rejecting.
  */
 export async function updateFarmer({ frn, fullName, phone, fieldValues = {}, existing }) {
   const farmerId = frn.trim().toUpperCase();
@@ -266,35 +277,32 @@ export async function updateFarmer({ frn, fullName, phone, fieldValues = {}, exi
   const changes = diffFarmerFields(previousFields, nextFields);
   if (!changes.length) return { changed: false, changes: [] };
 
-  trackWrite(
-    updateDoc(doc(db, 'farmers', farmerId), { ...nextFields, updatedAt: serverTimestamp() }),
-    'farmer ' + farmerId
-  );
-
   const editRef = doc(collection(db, 'farmerEdits'));
-  trackWrite(
-    setDoc(editRef, {
-      schemaVersion: 1,
-      frn: farmerId,
-      changes,
-      // currentDisplayName() resolves to the office id for an office
-      // account (the primary sign-in method), which is the accountability
-      // unit this app actually has - see docs/Risk-Register.md R24.
-      editedBy: currentDisplayName(),
-      editedByEmail: currentUserEmail(),
-      deviceCode: getDeviceCode(),
-      // serverTimestamp() stays null in the local cache until this syncs,
-      // so an offline edit would otherwise have no usable date at all -
-      // editedAtLocal is always present and is what the desktop app should
-      // fall back to (and what reveals a long offline gap).
-      editedAt: serverTimestamp(),
-      editedAtLocal: new Date().toISOString(),
-      syncedFromOffline: !navigator.onLine,
-    }),
-    'farmer edit ' + editRef.id
-  );
+  const batch = writeBatch(db);
 
-  return { changed: true, changes };
+  batch.update(doc(db, 'farmers', farmerId), { ...nextFields, updatedAt: serverTimestamp() });
+  batch.set(editRef, {
+    schemaVersion: 1,
+    frn: farmerId,
+    changes,
+    // currentDisplayName() resolves to the office id for an office
+    // account (the primary sign-in method), which is the accountability
+    // unit this app actually has - see docs/Risk-Register.md R24.
+    editedBy: currentDisplayName(),
+    editedByEmail: currentUserEmail(),
+    deviceCode: getDeviceCode(),
+    // serverTimestamp() stays null in the local cache until this syncs,
+    // so an offline edit would otherwise have no usable date at all -
+    // editedAtLocal is always present and is what the desktop app should
+    // fall back to (and what reveals a long offline gap).
+    editedAt: serverTimestamp(),
+    editedAtLocal: new Date().toISOString(),
+    syncedFromOffline: !navigator.onLine,
+  });
+
+  const committed = trackWrite(batch.commit(), 'farmer edit ' + farmerId);
+
+  return { changed: true, changes, committed };
 }
 
 /**

@@ -4,6 +4,13 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-08-01
+
+### Fixed
+- **A farmer edit could be saved without its audit record.** `updateFarmer` fired the farmer update and the `farmerEdits` audit record as two independent writes, neither awaited — so if the audit write was rejected (rules, malformed data) the farmer was still changed, leaving exactly the silent untracked edit the audit trail exists to prevent. Both writes now go in a single Firestore `writeBatch`, which commits atomically: either the change *and* its audit record land, or neither does. Verified by forcing a rejection — the farmer document is now correctly rolled back instead of keeping the change.
+  - A batch is not a transaction: it needs no server read, so unlike `runTransaction` (deliberately unused everywhere in this app — see [[System-Architecture]]) it still queues correctly offline. Confirmed an offline edit queues and syncs with `syncedFromOffline: true`.
+- **A rejected edit is no longer silent.** The commit failure was only ever logged to the browser console, so staff could walk away believing a correction had saved. Edit Farmer now shows "That change could not be saved and has been undone." if the server rejects the write. The promise is still not awaited (offline it stays pending by design, and blocking would hang the screen) — only a genuine rejection surfaces.
+
 ## [0.8.0] - 2026-08-01
 
 ### Added

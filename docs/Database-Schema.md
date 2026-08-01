@@ -100,6 +100,8 @@ Append-only audit trail of staff edits to farmer records, written by `updateFarm
 | `deviceCode` | string | Which device made the edit (see `devices/{deviceCode}`) |
 | `syncedFromOffline` | boolean | `true` if the device was offline when the edit was made |
 
+**The audit record and the farmer update are written in one `writeBatch`, so they commit atomically** — a farmer can never be changed without its matching `farmerEdits` entry, and a rejected audit write rolls the farmer change back rather than leaving an untracked edit. (A batch, unlike `runTransaction`, needs no server read and so still queues correctly offline — see [[System-Architecture]] "Offline behavior in detail".) Any change to `updateFarmer` must keep both writes in the same batch.
+
 **Nothing in the field app reads this collection back** — there is deliberately no in-app edit-history screen. It exists for the future desktop/admin app, which is why `read` is permitted (that app will use the same staff credentials) while `update` and `delete` are rejected outright in `firestore.rules`: an audit log that can be rewritten after the fact isn't an audit log. Only fields that genuinely differ are recorded, and a save with no changes writes nothing at all, so the collection stays free of no-op noise.
 
 Note this records *that* a value changed, not a full snapshot of the farmer at each point in time — the farmer document always holds current values only. Replaying `changes` backwards from the current record is how the desktop app would reconstruct history.

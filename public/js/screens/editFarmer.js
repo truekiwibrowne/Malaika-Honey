@@ -74,7 +74,19 @@ export async function renderEditFarmer(root, { frn }) {
             }
           }
 
-          const { changed } = await updateFarmer({ frn: farmer.frn, fullName, phone, fieldValues, existing: farmer });
+          const { changed, committed } = await updateFarmer({ frn: farmer.frn, fullName, phone, fieldValues, existing: farmer });
+
+          // The commit isn't awaited - offline it stays pending forever by
+          // design, and blocking on it would hang the screen. But if the
+          // server actively REJECTS it, the whole batch (farmer + audit
+          // record) is rolled back, so staff must be told rather than
+          // walking away believing a correction was saved.
+          if (committed) {
+            committed.catch(() => {
+              toast('That change could not be saved and has been undone. Please try again, or tell an admin.');
+            });
+          }
+
           toast(changed ? 'Changes saved.' : 'No changes to save.');
           navigate('#/farmer/' + farmer.frn);
         } catch (err) {
