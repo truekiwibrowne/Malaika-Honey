@@ -1,0 +1,82 @@
+const routes = [];
+let hooks = {};
+
+export function addRoute(pattern, handler, options = {}) {
+  const paramNames = [];
+  const regex = new RegExp(
+    '^' +
+      pattern
+        .split('/')
+        .map((seg) => {
+          if (seg.startsWith(':')) {
+            paramNames.push(seg.slice(1));
+            return '([^/]+)';
+          }
+          return seg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        })
+        .join('/') +
+      '$'
+  );
+  routes.push({ regex, paramNames, handler, options });
+}
+
+export function navigate(hash) {
+  if (location.hash === hash) {
+    handleRoute();
+  } else {
+    location.hash = hash;
+  }
+}
+
+function handleRoute() {
+  const raw = location.hash.slice(1) || '/home';
+  const [path, queryString] = raw.split('?');
+  const query = new URLSearchParams(queryString || '');
+  for (const route of routes) {
+    const match = path.match(route.regex);
+    if (match) {
+      const params = {};
+      route.paramNames.forEach((name, i) => {
+        params[name] = decodeURIComponent(match[i + 1]);
+      });
+
+      if (hooks.isAuthenticated) {
+        const authed = hooks.isAuthenticated();
+        if (!route.options.public && !authed) {
+          navigate('#/login');
+          return;
+        }
+        if (route.options.public && authed) {
+          navigate('#/dashboard');
+          return;
+        }
+      }
+
+      // Being signed in (Firebase Auth) and being an approved staff
+      // member (on the allowedStaff allowlist) are separate checks - a
+      // route can require the former without the latter (see /not-authorized
+      // itself, via skipAuthorizationCheck) to avoid an infinite redirect loop.
+      if (hooks.isAuthorized && !route.options.public && !route.options.skipAuthorizationCheck) {
+        if (!hooks.isAuthorized()) {
+          navigate('#/not-authorized');
+          return;
+        }
+      }
+
+      if (hooks.onRouteMatched) hooks.onRouteMatched(route.options, params, query);
+      route.handler(params, query);
+      return;
+    }
+  }
+  // Unknown path. Falls back to the signed-in landing page, or login when
+  // signed out - NOT to a fixed route that may not exist, which is how the
+  // copied field-app version (whose fallback was #/home) looped forever.
+  const fallback = hooks.isAuthenticated && hooks.isAuthenticated() ? '#/dashboard' : '#/login';
+  if (location.hash !== fallback) navigate(fallback);
+}
+
+export function startRouter(routerHooks = {}) {
+  hooks = routerHooks;
+  window.addEventListener('hashchange', handleRoute);
+  handleRoute();
+}

@@ -44,3 +44,42 @@ export function initOfflineBanner() {
   window.addEventListener('offline', update);
   update();
 }
+
+/**
+ * Small, quiet status line showing whether a GPS fix has been captured for
+ * the record being entered (see location.js). Deliberately understated: it
+ * is information, not a warning - a record with no fix is perfectly valid
+ * and saves normally. Its purpose is to stop staff assuming every record is
+ * geotagged when some are not, so it must never claim to still be searching
+ * once the attempt has actually failed.
+ */
+const LOCATION_TEXT = {
+  idle: 'Finding location…',
+  searching: 'Finding location…',
+  found: 'Location captured',
+  unavailable: 'Location unavailable',
+};
+
+export function locationIndicator(statusFn) {
+  const node = el('p', { class: 'location-hint' });
+  const render = () => {
+    const state = statusFn();
+    node.textContent = LOCATION_TEXT[state] || LOCATION_TEXT.idle;
+    node.classList.toggle('has-fix', state === 'found');
+    node.classList.toggle('no-fix', state === 'unavailable');
+    // Nothing more will change once we have a fix or know we can't get one.
+    if (state === 'found' || state === 'unavailable') stop();
+  };
+  const timer = setInterval(render, 1500);
+  // Screens are replaced wholesale by mount(), so there is no teardown hook -
+  // poll until the node leaves the document, then stop.
+  const guard = setInterval(() => {
+    if (!node.isConnected) stop();
+  }, 5000);
+  function stop() {
+    clearInterval(timer);
+    clearInterval(guard);
+  }
+  render();
+  return node;
+}

@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.8.1';
+export const APP_VERSION = '0.9.0';
 
 // One shared code per field office is the primary sign-in method now
 // (simpler for staff who don't read/speak English well - see

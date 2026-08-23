@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Malaika Honey — Management</title>
+    <meta name="description" content="Management dashboard for the Malaika Honey Farmer Relationship Manager." />
+    <!-- Not indexable: this is an internal tool over real farmer data. -->
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" href="assets/logo/icon-square.png" />
+    <link rel="preconnect" href="https://www.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <div id="shell" class="signed-out">
+      <aside id="nav"></aside>
+      <main id="view" class="view">
+        <!--
+          Visible immediately, before any JS runs, and replaced by the app on
+          first render. Without this the page is literally blank until the
+          modules load - so a broken deploy (missing files, wrong publish
+          directory) looked identical to a working app that was still
+          starting, with nothing on screen to tell them apart.
+        -->
+        <div id="boot" class="boot">
+          <div class="spinner"></div>
+          <p id="boot-msg">Starting…</p>
+        </div>
+      </main>
+    </div>
+
+    <!--
+      Print documents render here, outside #shell, so one @media print rule
+      can hide the whole application chrome (see css/styles.css and
+      js/lib/print.js).
+    -->
+    <div id="print-root" aria-hidden="true"></div>
+
+    <noscript>
+      <p style="padding:24px;font-family:sans-serif">
+        This tool needs JavaScript enabled.
+      </p>
+    </noscript>
+
+    <!--
+      Classic (non-module) script so it runs even if the module graph fails
+      to load at all. Turns a silent white page into a readable diagnostic -
+      which matters because this app is deployed by hand and the commonest
+      mistake (publishing index.html alone, without js/ css/ assets/) fails
+      exactly this way.
+    -->
+    <script>
+      (function () {
+        var msg = document.getElementById('boot-msg');
+        var shown = false;
+
+        function fail(detail) {
+          if (shown || !msg) return;
+          shown = true;
+          var boot = document.getElementById('boot');
+          if (boot) boot.classList.add('boot-failed');
+          msg.innerHTML =
+            '<strong>The application could not start.</strong><br>' +
+            'This usually means the deploy is missing files — the whole ' +
+            '<code>admin/</code> folder must be published, not just ' +
+            '<code>index.html</code>.<br><span class="boot-detail">' +
+            String(detail).replace(/[<>&]/g, '') + '</span>';
+        }
+
+        window.addEventListener('error', function (e) {
+          // Failed subresource (a missing module/stylesheet) has no message.
+          if (e && e.target && e.target !== window && (e.target.src || e.target.href)) {
+            fail('Could not load: ' + (e.target.src || e.target.href));
+          } else if (e && e.message) {
+            fail(e.message);
+          }
+        }, true);
+
+        window.addEventListener('unhandledrejection', function (e) {
+          fail((e && e.reason && e.reason.message) || 'Failed to load application code.');
+        });
+
+        // If nothing has rendered after a reasonable wait, say so rather than
+        // spinning forever - a stalled network looks the same as a broken one.
+        setTimeout(function () {
+          if (document.getElementById('boot')) {
+            fail('Timed out waiting for the application to load.');
+          }
+        }, 15000);
+      })();
+    </script>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>

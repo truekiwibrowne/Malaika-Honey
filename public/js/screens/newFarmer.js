@@ -1,8 +1,9 @@
-import { el, mount } from '../lib/ui.js';
+import { el, mount, locationIndicator } from '../lib/ui.js';
 import { navigate } from '../router.js';
 import { createFarmer, findFarmerByPhone, findFarmerByName } from '../lib/db.js';
 import { iconEl } from '../lib/icons.js';
 import { buildFarmerForm } from '../lib/farmerForm.js';
+import { startLocationCapture, locationStatus } from '../lib/location.js';
 
 function resetSaveBtnLabel(btn) {
   btn.replaceChildren(iconEl('check'), document.createTextNode(' Save Farmer'));
@@ -10,6 +11,10 @@ function resetSaveBtnLabel(btn) {
 
 export async function renderNewFarmer(root) {
   mount(root, el('p', { class: 'hint' }, 'Loading form…'));
+
+  // Ask for a fix now, while the form is being filled in - by save time it
+  // has usually arrived. See location.js for why this isn't done at submit.
+  startLocationCapture();
 
   const farmerForm = await buildFarmerForm();
   const errorBox = el('div', { class: 'field-error', hidden: true });
@@ -82,6 +87,7 @@ export async function renderNewFarmer(root) {
     root,
     el('h1', {}, 'New Farmer'),
     el('p', { class: 'welcome' }, 'Register a new farmer.'),
+    locationIndicator(locationStatus),
     form
   );
 }

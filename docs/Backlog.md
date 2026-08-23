@@ -48,11 +48,14 @@ This backlog is a living document — update it as priorities shift. See [[Chang
 
 | # | Item | Notes |
 |---|---|---|
-| 3.1 | Desktop-focused admin web app (separate deploy, same Firestore) | See [[System-Architecture]] |
-| 3.2 | Reports dashboard: today's purchases, farmers registered, product totals, top suppliers | Mirrors the "Management Database" mock-up |
-| 3.3 | Export to Excel/CSV | |
-| 3.4 | Farmer record merge/deactivate, and a UI for reading back the edit history | **Edit** itself shipped in the field app in v0.8.0 (Farmer Profile → **Edit Details**), writing an append-only `farmerEdits` audit trail. What's still missing here: merging duplicate farmer records, deactivating a record, and a screen that actually *reads* `farmerEdits` back — nothing displays that history today (see [[Database-Schema]] "farmerEdits" and [[Risk-Register]] R33) |
+| 3.1 | ~~Desktop-focused admin web app (separate deploy, same Firestore)~~ | ✅ Done in v0.9.0 — `admin/`, hosted on Netlify, individual email+password admin accounts (see [[System-Architecture]] "Two applications, one database") |
+| 3.2 | ~~Reports dashboard: today's purchases, farmers registered, product totals, top suppliers~~ | ✅ Done in v0.9.0 — plus 7-day/month windows and an unmatched-purchase prompt |
+| 3.3 | Export to Excel/CSV | Still open. The four printable documents shipped in v0.9.0 cover *printing*; a spreadsheet export for M&E analysis is a different need |
+| 3.4 | Farmer record merge/deactivate | **Edit** itself shipped in the field app in v0.8.0 (Farmer Profile → **Edit Details**), writing an append-only `farmerEdits` audit trail. Reading the edit history back also shipped in v0.9.0 (Farmer detail → Edit history, in the management app). Still missing: **merging** duplicate farmer records and **deactivating** a record |
 | 3.5 | Bonus/incentive payments tied to FRN quality & quantity history | `incentives` collection (see [[Database-Schema]]) |
+| 3.6 | **Photos** — purchase evidence (produce, weight reading, receipt) and farmer/farm/hive photos | **Blocked on upgrading Firebase to the Blaze plan**: Cloud Storage isn't available on Spark. Needs `storage.rules`, a bucket layout, and client-side image compression before upload — field phones on poor connections must not upload 5 MB originals. Requested by the owner alongside v0.9.0 |
+| 3.7 | Farm and hive GPS — an explicit "pin this location" step, separate from the automatic staff-location capture shipped in v0.9.0 | Builds on `public/js/lib/location.js`; relates to 4.3's `hiveVisits` collection |
+| 3.8 | Periodic reconciliation report recomputing `lifetimeStats` from `purchases` to detect drift | Would make [[Risk-Register]] R38 detectable rather than silent; cheap to add once exports (3.3) exist |
 
 ## Milestone 4 — M&E (Monitoring & Evaluation)
 

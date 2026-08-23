@@ -69,7 +69,11 @@ Malaika Honey needs a Farmer Relationship Manager (FRM): a system that registers
 The brief separates concerns into two apps sharing the same Firestore database:
 
 1. **Field app (this build, v1)** — mobile-first (Login, Tutorial, Home, Existing Farmer, New Farmer, Buy Produce, History, Farmer Card, Reconcile), designed for buying-centre staff. Read/write access to `farmers`, `purchases`, and `devices`, gated by Firebase Auth.
-2. **Admin/management app (future)** — desktop-focused, for reporting, data correction, M&E exports (Excel), and eventually managing training/incentive/hive-visit data. Reads the same collections; no schema changes needed to start it, since Firestore is schemaless and the admin app can simply add new collections (`trainings`, `hiveVisits`, etc. — see [[Database-Schema]]) without migrating the field app.
+2. **Admin/management app (`admin/`, built in v0.9.0)** — desktop-focused, for reporting, record correction and printing. **Hosted on Netlify** (`netlify.toml` publishes `admin/`), while the field app stays on Firebase Hosting — two hosts, one Firestore. Signs in with **individual email+password accounts** gated on `allowedStaff` + `role: 'admin'`, unlike the field app's shared office codes, so management actions are attributable to a person.
+
+   Being on a different origin is fine because Firestore and email/password Auth are plain API calls with no origin coupling. It would **not** be fine for Google Sign-In, whose redirect depends on `authDomain` matching the serving domain — the exact failure in [[Risk-Register]] R18 — which is why the admin app deliberately stays on email/password.
+
+   The two apps share `public/js/lib/farmerFields.js` (farmer field mapping and diffing, no Firebase imports). It is copied into `admin/js/shared/` by Netlify's build command rather than duplicated by hand, because both apps write `farmerEdits` audit records from that logic and any drift between them would silently corrupt the audit trail. `admin/js/shared/` is gitignored for the same reason — there is exactly one source of truth, in `public/`.
 
 Splitting them into two deployable apps (rather than one app with hidden admin routes) keeps the field app's bundle and permissions minimal, which matters for load speed on cheap Android phones and for keeping the attack surface small before Auth is added.
 

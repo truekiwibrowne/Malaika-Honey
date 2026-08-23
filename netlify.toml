@@ -1,0 +1,26 @@
+# Netlify hosts the MANAGEMENT app only (admin/). The field app stays on
+# Firebase Hosting (public/) — see docs/Release-Management.md. Both read the
+# same Firestore project.
+
+[build]
+  publish = "admin"
+  # Not a bundler — just a copy. farmerFields.js and firebase.config.js have
+  # exactly one source of truth in public/, and are copied into admin/js/shared/
+  # at deploy time so the two apps can never disagree about how a farmer's
+  # fields map or what counts as a change (that drift would corrupt the
+  # farmerEdits audit trail). See docs/System-Architecture.md.
+  command = "mkdir -p admin/js/shared && cp public/js/lib/farmerFields.js public/js/config/firebase.config.js admin/js/shared/"
+
+# Hash-routed like the field app, so this is a safety net rather than a
+# necessity — a deep link pasted without the hash still lands on the app.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

@@ -1,10 +1,11 @@
-import { el, mount } from '../lib/ui.js';
+import { el, mount, locationIndicator } from '../lib/ui.js';
 import { navigate } from '../router.js';
 import { getFarmerByFrnFromCache, savePurchase, searchFarmers } from '../lib/db.js';
 import { formatUgx } from '../lib/constants.js';
 import { getProducts, getGrades, getPaymentMethods } from '../lib/referenceData.js';
 import { iconEl } from '../lib/icons.js';
 import { openQrScanner } from '../lib/qrScanner.js';
+import { startLocationCapture, locationStatus } from '../lib/location.js';
 
 function resetSaveBtnLabel(btn) {
   btn.replaceChildren(iconEl('check'), document.createTextNode(' Save'));
@@ -42,6 +43,9 @@ function choiceGroup(options, onSelect) {
  */
 async function renderPurchaseForm(root, { frn, farmerName }) {
   mount(root, el('p', { class: 'hint' }, 'Loading form…'));
+
+  // See newFarmer.js / location.js - requested on open, read at save.
+  startLocationCapture();
 
   const [products, grades, paymentMethods] = await Promise.all([getProducts(), getGrades(), getPaymentMethods()]);
 
@@ -128,6 +132,7 @@ async function renderPurchaseForm(root, { frn, farmerName }) {
     farmerName
       ? el('p', { class: 'welcome' }, farmerName + ' · ' + frn)
       : el('p', { class: 'welcome', style: 'color:var(--color-yellow-dark)' }, 'FRN ' + frn + ' · not found on this device — will be checked once online'),
+    locationIndicator(locationStatus),
     form
   );
 }

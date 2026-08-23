@@ -113,3 +113,20 @@ Locally, edit the same collections in the **Firestore emulator** (Emulator UI's 
 ## Who can change what
 
 Until Firebase Auth/roles exist (Backlog 2.1), anyone with the GitHub repo and Firebase console access can change configuration. Treat Firebase console access the same as production database access — don't share the project owner login broadly; add collaborators by email in Firebase Console → Project settings → Users and permissions instead.
+
+
+## Management app setup (one-time, Firebase Console)
+
+The management app (`admin/`, hosted on Netlify) talks to the same Firebase project from a **different origin**, so two Console settings must allow it. Both live outside this repo, and when either is wrong the failure looks like a code bug — it works on localhost and fails only from the Netlify URL.
+
+1. **Authorized domains** — Firebase Console → Authentication → Settings → Authorized domains → add the Netlify domain.
+2. **API key restrictions** — Google Cloud Console → APIs & Services → Credentials → the browser API key. If HTTP-referrer restrictions are set, add the Netlify origin. If no restrictions are set, nothing to do.
+
+### Creating a management account
+
+Management accounts are **individual** (a real email address per person), unlike the shared office codes the field app uses — so a record correction is attributable to a person. They are Console-only, deliberately: there is no self-service signup and no way to grant the admin role from inside either app.
+
+1. Firebase Console → Authentication → Users → **Add user**, with the person's real email address and a password.
+2. Firestore → `allowedStaff` → add a document whose **ID is that email address**, with a field `role` = `admin` (string).
+
+To revoke management access, remove the `role` field (leaves them as ordinary approved staff) or delete the `allowedStaff` document (removes all access). Also disable the Auth user if the person has left — that takes effect immediately server-side, whereas an `allowedStaff` change can lag on a device with a cached authorization (see [[Risk-Register]] R17).

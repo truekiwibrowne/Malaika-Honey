@@ -9,3 +9,8 @@ ui-debug.log
 .env.local
 ~$*
 .tools/
+
+# Generated at deploy time from public/ (see .tools/sync-admin-shared.sh
+# and netlify.toml). Not committed, so a stale copy can never diverge from
+# the source and corrupt the farmerEdits audit trail.
+admin/js/shared/

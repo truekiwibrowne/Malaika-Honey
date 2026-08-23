@@ -4,6 +4,32 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-23
+
+Two things ship together here: GPS provenance in the field app, and a brand-new **management app** — the first time this project has had a second application (Milestone 3 in [[Backlog]]).
+
+### Added — field app
+- **GPS capture on new records.** Registering a farmer or recording a purchase now stores where the staff member was, as `registeredLocation` / `recordedLocation` (`{ lat, lng, accuracyM, capturedAt }`, or `null`). New `public/js/lib/location.js`.
+  - The fix is requested **when the form opens**, not at submit — a GPS lock takes seconds outdoors and often never arrives under a metal roof, so asking at save time would either stall the save or almost always return nothing.
+  - **It can never block or fail a save.** Permission denied, no fix, no hardware, insecure context — every path degrades to `null` and the record saves exactly as before. Verified explicitly: with permission denied the farmer still saves, with `registeredLocation: null`.
+  - A quiet indicator on both forms shows *Finding location… / Location captured / Location unavailable*, so staff are never told every record is geotagged when some are not, and are never left waiting for a fix that was already refused.
+
+### Added — management app (`admin/`, hosted on Netlify)
+- **A desktop tool reading the same Firestore**: dashboard, farmer and purchase browsing, record editing, and printable documents. Deployed separately from the field app (Netlify vs Firebase Hosting) so the field bundle stays small — see [[Release-Management]].
+- **Separate sign-in: individual admin accounts** (real email + password), distinct from the field app's shared office codes, gated on `allowedStaff` + `role: 'admin'`. Management edits are therefore attributable to a **person**, not an office — the gap noted in [[Risk-Register]] R24.
+- **Dashboard** — farmer and purchase counts, weight and value totals, today/7-day/month activity, breakdown by product, top suppliers, and a prompt when unmatched purchases need reconciling.
+- **Editing** — farmers and purchases, both writing append-only audit records (`farmerEdits`, new `purchaseEdits`) in the same atomic `writeBatch` as the write itself.
+- **Purchase edits correct the farmer's lifetime totals.** `lifetimeStats` is maintained by `increment()` deltas and never recomputed, so changing a saved weight or price would silently desynchronise a farmer's lifetime figures. The **difference** is applied in the same batch, and `lastPurchaseAt` (a max, not a sum) is recomputed afterwards.
+- **Four printable documents** via a print stylesheet and the browser's own print dialog — which covers printing *and* "Save as PDF" from one implementation, and handles pagination, page breaks and repeated table headers that a hand-rolled PDF layout would not: farmer record with full purchase history, purchase receipt, filtered purchase report, and farmer register.
+- **Farmer and purchase edit history is now visible** — the first UI anywhere that reads `farmerEdits` back (Backlog 3.4). The field app still only writes it.
+
+### Changed
+- Farmer field mapping and diffing moved out of `public/js/lib/db.js` into a dependency-free `public/js/lib/farmerFields.js`, shared by both apps (copied into `admin/js/shared/` at deploy time — see `netlify.toml`). One source of truth, so the two apps can never disagree about what counts as a change and corrupt the audit trail.
+- `firestore.rules`: new append-only `purchaseEdits` collection (create + read for approved staff; never update or delete).
+
+### Known limitation
+The admin-role check gates the management **UI**, not the data. Firestore rules let any approved staff account read farmers and purchases because the field app's search depends on it — so this is a product boundary, not a security boundary. Recorded as [[Risk-Register]] R35.
+
 ## [0.8.1] - 2026-08-01
 
 ### Fixed

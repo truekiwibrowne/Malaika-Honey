@@ -42,7 +42,21 @@ Uses `firebase.json` (`"public": "public"`) and the `malaikahoney-78577` project
 
 Note: this does **not** deploy `functions/` (push notifications — see [[Push-Notifications]]), a separate, not-yet-active deploy target requiring the Blaze plan (`firebase deploy --only functions`, see that doc for the full one-time setup). Ordinary releases per this doc never need to touch it.
 
-Netlify was previously supported as an alternate host but has been removed (no `netlify.toml`, no Netlify GitHub integration) — Firebase Hosting is now the only deploy target, since the database already lives on Firebase and running two hosts added no real benefit.
+**Netlify is back as of v0.9.0 — but for the management app only.** It was previously an alternate host for the *field* app and removed in v0.6.2 for good reason (two hosts for one app added nothing). That reasoning doesn't apply now: these are two different applications with different audiences, and the field app remains Firebase-Hosting-only.
+
+## Deploying the management app (`admin/`)
+
+`netlify.toml` publishes `admin/` and runs one copy command first (not a bundler):
+
+```bash
+mkdir -p admin/js/shared && cp public/js/lib/farmerFields.js public/js/config/firebase.config.js admin/js/shared/
+```
+
+That keeps `public/` as the single source of truth for the modules both apps share; `admin/js/shared/` is gitignored so a stale committed copy can't diverge. Run `.tools/sync-admin-shared.sh` before serving `admin/` locally.
+
+The two deploys are fully independent — `firebase deploy --only hosting` publishes `public/` and never touches `admin/`, and a Netlify deploy never touches the field app. Only `firestore.rules` is shared, so a rules change must be deployed once (`firebase deploy --only firestore:rules`) regardless of which app prompted it.
+
+Before the **first** Netlify deploy, complete the one-time Console setup in [[Config-Management]] "Management app setup" — otherwise sign-in works on localhost and fails in production.
 
 ## Rollback
 

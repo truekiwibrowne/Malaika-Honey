@@ -80,6 +80,17 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Append-only audit trail of MANAGEMENT edits to purchases, written by
+    // the admin app (admin/js/lib/data.js updatePurchaseAsAdmin). Same
+    // reasoning as farmerEdits: a purchase is a financial record, so a
+    // correction must leave a trail that cannot later be rewritten.
+    match /purchaseEdits/{editId} {
+      allow read: if isApprovedStaff();
+      allow create: if isApprovedStaff()
+        && request.resource.data.keys().hasAll(['purchaseId', 'changes', 'editedBy']);
+      allow update, delete: if false;
+    }
+
     match /purchases/{purchaseId} {
       allow read: if isApprovedStaff();
       allow create: if isApprovedStaff()

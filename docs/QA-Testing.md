@@ -11,6 +11,41 @@ npx serve public -l 5000
 ```
 Open `http://localhost:5000`. The app auto-detects `localhost` and connects to the Firestore **and Auth** emulators instead of production (see `public/js/lib/firebase.js` and [[Config-Management]]) — so testing never touches real farmer data or real staff accounts. Add a `fieldOffices` document (Emulator UI's Firestore tab, or the Admin SDK) so the office picker on Login has something to show, then create the matching Auth user (Emulator UI's Authentication tab) with the office's synthetic email and a test code as its password — see [[Config-Management]] "Field office provisioning," which works identically against the emulator, no real Console access needed. Phone+password and Google Sign-In are both hidden by default (`PHONE_SIGNIN_ENABLED`/`GOOGLE_SIGNIN_ENABLED` in `public/js/lib/constants.js`) — flip either to `true` locally if you specifically need to test that path.
 
+
+## Management app checklist (`admin/`, Netlify)
+
+Serve `admin/` locally (`.tools/sync-admin-shared.sh` first, so `admin/js/shared/` exists) and point it at the emulator, exactly like the field app.
+
+### A1. Access control
+- [ ] Sign in with an approved but **non-admin** account and confirm a clear "No management access" screen — no nav, no dashboard, no data.
+- [ ] Sign in with an `allowedStaff` account carrying `role: 'admin'` and confirm the dashboard loads.
+- [ ] Wrong password / unknown email → a short, clear message, not a raw Firebase error code.
+- [ ] Remember this gate is the **UI** boundary, not the data boundary (see [[Risk-Register]] R35) — don't treat it as proof a non-admin cannot read the data.
+
+### A2. Dashboard accuracy
+- [ ] With a known, small seeded data set, check **every** figure against hand-computed totals: farmer count, purchase count, total kg, total paid, today/7-day/month, by-product breakdown, top suppliers. A dashboard that is confidently wrong is worse than no dashboard.
+- [ ] Confirm unmatched (`frnUnverified`) purchases are counted in the overall totals but **excluded** from Top Suppliers, and that the "not matched to a farmer" notice shows the right count.
+
+### A3. Editing and audit
+- [ ] Edit a farmer; confirm a `farmerEdits` record is written with the **admin's own email** and `editedVia: 'admin'`, and that it appears in the Edit history panel on that farmer.
+- [ ] Confirm the field app's edits also appear in that same history, labelled as coming from the field app.
+- [ ] **Atomicity:** force a rejected write and confirm the farmer document is left unchanged — never updated-without-an-audit-record (see also section 1d).
+- [ ] Change a farmer's phone to one already in use → blocked, naming the other farmer.
+- [ ] **Edit a purchase's weight or price and confirm the farmer's `lifetimeStats` moves by exactly the difference** (e.g. 20 kg → 25 kg at 8,500 moves totals by +5 kg / +42,500). Confirm a `purchaseEdits` record is written. This is the check that catches lifetime totals silently drifting out of step with the purchases behind them.
+- [ ] Change a purchase's date and confirm `lifetimeStats.lastPurchaseAt` is recomputed correctly.
+- [ ] Confirm editing a purchase that is **not** matched to a farmer does not touch anyone's lifetime totals, and says so on screen.
+
+### A4. Printing (all four documents)
+- [ ] **Farmer record + purchase history**, **purchase receipt**, **filtered purchase report**, **farmer register** — each opens the print dialog and renders with the letterhead, correct totals, and **no application chrome** (no sidebar, no buttons).
+- [ ] Print a farmer with enough purchases to span pages: confirm the table header repeats on each page and no row is split across a page break.
+- [ ] Confirm "Save as PDF" from the print dialog produces the same output.
+- [ ] Confirm a filtered report's subtitle describes the filters actually applied.
+- [ ] To inspect print layout without printing, add the `preview` class to `#print-root` and hide `#shell` — the document styles deliberately live outside `@media print` for exactly this reason.
+
+### A5. Netlify / cross-origin
+- [ ] After deploying, sign in **from the Netlify URL** and load the dashboard. This is where a missing authorized domain or an API-key HTTP-referrer restriction shows up (see [[Config-Management]]) — it works on localhost and fails only in production.
+- [ ] Confirm the field app on Firebase Hosting is entirely unaffected by an admin deploy.
+
 ## Golden-path checklist (run before every release)
 
 ### 0. Login, authorization, and first-run tutorial
@@ -89,6 +124,15 @@ Open `http://localhost:5000`. The app auto-detects `localhost` and connects to t
 - [ ] Edit a farmer while **offline** and confirm it saves instantly, and that once synced the `farmerEdits` document has `syncedFromOffline: true` and a usable `editedAtLocal` (its `editedAt` server timestamp is null until sync — this is why both exist).
 - [ ] Confirm the FRN is not editable anywhere on the form, and that editing a farmer never changes their lifetime stats, `registeredBy`, or `registeredAt`.
 - [ ] **Atomicity regression check:** the farmer update and its `farmerEdits` record are written in one `writeBatch` and must stay that way. After any change to `updateFarmer`, confirm that a *rejected* write leaves the farmer document **unchanged** — never the farmer updated with no audit record (this shipped broken once in v0.8.0 and must not regress). Easiest check: temporarily tighten the `farmerEdits` rule in the emulator so the create fails, save an edit, and confirm the farmer's old values survive and an error is shown.
+
+### 1e. GPS capture on new records
+- [ ] On **New Farmer** and **Buy Produce**, confirm a small status line appears reading *Finding location…*, then *Location captured* once a fix arrives.
+- [ ] Save a record with a fix and confirm `registeredLocation` / `recordedLocation` is stored with `lat`, `lng`, `accuracyM`, `capturedAt` (Firestore console/emulator).
+- [ ] **Deny location permission and confirm the record still saves normally**, with the field stored as `null` and no error shown to staff. This is the single most important check here — a purchase must never be lost because a satellite fix wasn't available.
+- [ ] With permission denied, confirm the indicator reads *Location unavailable* rather than sitting on *Finding location…* forever (staff must not be left waiting for something already refused).
+- [ ] Simulate a slow/never-arriving fix (devtools sensors, or a device indoors) and confirm saving is never blocked or delayed.
+- [ ] Save while **offline** and confirm behaviour is unchanged — the location captured locally syncs with the record.
+- [ ] Spot-check a stored coordinate on a map and confirm it is roughly where the record was made; note that `accuracyM` above a few hundred metres means a network-derived guess, not a GPS fix.
 
 ### 2. Existing Farmer
 - [ ] From Home, tap **Existing Farmer**.

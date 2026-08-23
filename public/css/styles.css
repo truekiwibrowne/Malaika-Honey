@@ -840,3 +840,24 @@ html, body {
   text-align: center;
   padding: 6px;
 }
+
+/* GPS capture status on New Farmer / Buy Produce (see js/lib/location.js).
+   Understated on purpose - a record with no fix still saves normally, so
+   this is information, never a warning. */
+.location-hint {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin: -4px 0 4px;
+}
+.location-hint::before {
+  content: '○ ';
+}
+.location-hint.has-fix {
+  color: var(--color-green-dark, #2f6b3a);
+}
+.location-hint.has-fix::before {
+  content: '● ';
+}
+.location-hint.no-fix::before {
+  content: '○ ';
+}

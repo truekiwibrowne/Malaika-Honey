@@ -39,6 +39,7 @@ One document per registered farmer. Document ID = FRN.
 | `wantsTraining` | boolean | Interest in Malaika training programs |
 | `signatureDate` | string (`YYYY-MM-DD`) | Date the paper/digital agreement was signed |
 | `photoUrl` | string or null | Reserved for future farmer photo on ID card (Firebase Storage URL) |
+| `registeredLocation` | map or null | Where the staff member was when they registered this farmer — `{ lat, lng, accuracyM, capturedAt }`. **Nullable and frequently null**: see "Record location" below |
 | `status` | string enum: `active`, `inactive` | Defaults to `active`; lets office deactivate a farmer without deleting history |
 | `registeredBy` | string | Signed-in staff member's identifier (from Firebase Auth, see "Staff accounts" below) |
 | `registeredAt` | timestamp | Server timestamp, set once |
@@ -77,12 +78,27 @@ One document per honey/product intake. Document ID = Firestore auto-ID.
 | `syncedFromOffline` | boolean | `true` if the write was queued while offline and synced later — useful for QA and dispute resolution |
 | `frnUnverified` | boolean | `true` if, at the moment this purchase was saved, the typed FRN wasn't found in this device's local cache (commonly because the device was offline and had never seen that farmer before, or because of a typo). The purchase is still saved either way — see [[System-Architecture]] "Offline behavior in detail" |
 | `originalTypedFrn` | string or null | Set only when `frnUnverified` is `true` — preserves exactly what staff typed, for the `/reconcile` screen and for audit if the eventual match turns out wrong |
+| `recordedLocation` | map or null | Where the staff member was when they recorded this purchase — same shape as `farmers.registeredLocation`. **Nullable and frequently null**: see "Record location" below |
 
 **Required composite indexes** (`firestore.indexes.json`):
 - `frn ASC, purchaseDate DESC` — powers the farmer History screen (all purchases for one FRN, newest first).
 - `frnUnverified ASC, createdAt DESC` — powers the `/reconcile` screen (all purchases still awaiting a confirmed farmer match, newest first).
 
 **Reconciling an unverified purchase:** `resolveUnverifiedPurchase(purchaseId, confirmedFrn)` (in `public/js/lib/db.js`) sets `frn`/`farmerNameSnapshot` to the confirmed farmer, flips `frnUnverified` to `false`, and applies the `lifetimeStats` `increment()` that was deferred at save time. Used by the `/reconcile` screen, reachable from a banner on Home whenever unresolved purchases exist.
+
+## Record location
+
+`farmers.registeredLocation` and `purchases.recordedLocation` capture where a record was created, written by `public/js/lib/location.js`:
+
+```js
+{ lat: 0.34123, lng: 32.58456, accuracyM: 9, capturedAt: '2026-08-23T10:14:08.851Z' }
+```
+
+**Treat these as optional, not guaranteed.** They are `null` whenever no fix was available — permission denied, no GPS hardware, or simply no lock in the time the form was open, which is common indoors and under the metal roofing typical of a buying centre. The capture is deliberately started when the form opens and read (without waiting) at save time, and **never blocks or fails a save**: losing a purchase because a satellite fix was slow would be far worse than storing `null`. Any reporting built on this data must handle a substantial share of missing values rather than assuming every record is geotagged.
+
+`accuracyM` is the receiver's own accuracy estimate in metres — worth surfacing in any map view, since a 2000 m "fix" is a network-derived guess, not a GPS position.
+
+This is staff-location data as well as farm-location data. See [[Risk-Register]] R36/R37 before using it for anything other than record provenance.
 
 ### `farmerEdits/{editId}`
 
@@ -105,6 +121,14 @@ Append-only audit trail of staff edits to farmer records, written by `updateFarm
 **Nothing in the field app reads this collection back** — there is deliberately no in-app edit-history screen. It exists for the future desktop/admin app, which is why `read` is permitted (that app will use the same staff credentials) while `update` and `delete` are rejected outright in `firestore.rules`: an audit log that can be rewritten after the fact isn't an audit log. Only fields that genuinely differ are recorded, and a save with no changes writes nothing at all, so the collection stays free of no-op noise.
 
 Note this records *that* a value changed, not a full snapshot of the farmer at each point in time — the farmer document always holds current values only. Replaying `changes` backwards from the current record is how the desktop app would reconstruct history.
+
+### `purchaseEdits/{editId}`
+
+Append-only audit trail of **management** edits to purchases, written by the admin app (`admin/js/lib/data.js` `updatePurchaseAsAdmin`). Same shape and reasoning as `farmerEdits`: `{ purchaseId, frn, changes[], editedBy, editedByEmail, editedVia: 'admin', editedAt, editedAtLocal }`, with `update` and `delete` rejected in `firestore.rules`.
+
+The field app never edits a purchase, so every document here comes from the management app.
+
+**Editing a purchase must correct the farmer's `lifetimeStats`.** Those totals are accumulated from `increment()` deltas and never recomputed from scratch (see `purchases` above for why transactions are avoided), so changing a saved weight or price without applying the **difference** would silently desynchronise a farmer's lifetime figures from their actual purchases. `updatePurchaseAsAdmin` applies that delta inside the same `writeBatch` as the purchase update and the audit record, so the three can't diverge. `lastPurchaseAt` is a max rather than a sum, so it can't be corrected by a delta — it is recomputed in a follow-up write, deliberately after the batch, since it is a derived convenience value and the ledger matters more.
 
 ### `devices/{deviceCode}`
 

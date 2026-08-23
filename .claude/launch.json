@@ -6,6 +6,26 @@
       "runtimeExecutable": "./.tools/run-emulators.sh",
       "runtimeArgs": [],
       "port": 5050
+    },
+    {
+      "name": "admin-app",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        ".tools/devserve.py",
+        "admin",
+        "5050"
+      ],
+      "port": 5050
+    },
+    {
+      "name": "field-app",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        ".tools/devserve.py",
+        "public",
+        "5050"
+      ],
+      "port": 5050
     }
   ]
 }

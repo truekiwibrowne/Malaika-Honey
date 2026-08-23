@@ -110,6 +110,18 @@ Date of Birth (and any other date field) can be filled in two ways:
 
 If you type a date that can't exist (like 31 February) or a date in the future, the app will tell you rather than saving something wrong.
 
+## About location (please tell your staff)
+
+When you register a farmer or record a purchase, the app also saves **where you were at the time**, using the phone's location. You'll see a small line on the form saying *Finding location…*, then *Location captured*.
+
+What this means in practice:
+
+- **It never stops you working.** If the phone can't find a location — no signal, indoors, under a metal roof, or you said No to the location request — the record still saves completely normally. You'll just see *Location unavailable*. Nothing is lost and nothing is wrong.
+- **It only happens when you save a record.** The app is not following you around or tracking you between records.
+- **Why it's there:** so head office can see where deliveries were recorded, which helps with checking records and with reporting to partners.
+
+Staff should be told this is happening before they use the app — it records their location, not just the farm's. If anyone is uncomfortable, raise it with management rather than working around it.
+
 ## Recording a purchase (Buy Produce)
 
 **Buy Produce** works two ways: from a farmer's profile (once you've confirmed who they are via Existing Farmer), or directly from the Home screen — which is the one that works without internet.
