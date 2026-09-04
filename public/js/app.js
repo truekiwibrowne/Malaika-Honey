@@ -95,7 +95,15 @@ initOfflineBanner();
 // internet" error page. Separate from, and in addition to, Firestore's
 // own offline data cache.
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch((err) => {
+  // Registered with an EXPLICIT root scope and an absolute path. Both matter
+  // on Android: Chrome will only build a WebAPK (a real installed app) if a
+  // service worker controls the manifest's start_url and scope, which are
+  // both "/". A relative 'sw.js' resolves against the current document, so it
+  // would silently take a narrower scope if the app were ever served from a
+  // subdirectory - and a too-narrow scope downgrades the install to a plain
+  // browser shortcut with no offline caching, which is exactly the Android
+  // symptom this guards against.
+  navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch((err) => {
     console.warn('[Malaika Honey] Service worker registration failed:', err.message);
   });
 }

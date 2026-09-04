@@ -4,6 +4,22 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-08-25
+
+### Fixed — Android PWA installability
+Android (Chrome/Samsung Internet) was adding the app as a plain browser shortcut rather than installing it as a WebAPK, so it opened in a browser tab and the offline service-worker cache never applied. iOS was unaffected because Safari installs from the `apple-mobile-web-app-*` meta tags, which were already present.
+
+- **`manifest.webmanifest`**: added the explicit **`id`** (`"/"`) Android uses to identify the app — without it Chrome derives identity from `start_url`, which is what lets a second "Add to Home screen" create a duplicate shortcut instead of recognising the installed app. Also added `scope`, `description`, `lang`, `dir`, `orientation`, `categories` and `display_override`, and changed `start_url` from `./index.html` to `/` so it matches the scope and the URL the app is actually opened at.
+- **Maskable icons** (`icon-maskable-192.png`, `icon-maskable-512.png`): the existing icons are edge-to-edge artwork spanning 98% of their width, so any Android adaptive launcher (circle, squircle, teardrop) clipped them. The new maskable variants sit the bee mark at 55% of the canvas — its corners land 36% from centre against the 80%-diameter safe zone's 40% limit. An earlier attempt at 60% put the corners at 39.7%, flush against the limit and still liable to clip.
+- **Service worker registration**: now `register('/sw.js', { scope: '/' })` rather than a relative `'sw.js'` with an implicit scope. A too-narrow scope silently downgrades the install to a shortcut with no offline caching — the exact symptom being fixed.
+- **Navigation fallback** now tries both cached shell keys (`index.html`, then `./`). Chrome probes `start_url` through the service worker while offline when deciding installability, so a fallback that returned nothing would cost the WebAPK, not just an offline reload.
+- **`index.html`**: added `mobile-web-app-capable` (the cross-browser counterpart to the Apple tag already present, still honoured by older Android WebViews and some Samsung Internet builds) and `application-name`.
+
+### Verified
+Against a cleared cache and a fresh service worker: all 16 of Chrome's WebAPK criteria pass, the app shell loads with the **server fully stopped** (a real offline navigation, not a simulated one), and both maskable icons survive circle and squircle masks intact.
+
+**Not verified from here:** actual WebAPK installation on a physical Android device — that needs a real handset (see [[QA-Testing]] "PWA installability").
+
 ## [0.9.0] - 2026-08-23
 
 Two things ship together here: GPS provenance in the field app, and a brand-new **management app** — the first time this project has had a second application (Milestone 3 in [[Backlog]]).

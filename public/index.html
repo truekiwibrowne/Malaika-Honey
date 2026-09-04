@@ -11,6 +11,12 @@
      three make it overlay the status bar (black-translucent) instead of
      leaving a separate colored bar, which was showing as a seam. See
      styles.css #app for the matching safe-area padding this requires. -->
+<!-- The cross-browser counterpart to apple-mobile-web-app-capable below.
+     Modern Chrome reads display:standalone from the manifest instead, but
+     older Android WebViews and some Samsung Internet builds still honour
+     this, and it costs nothing. -->
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="application-name" content="Malaika Honey" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Malaika Honey" />

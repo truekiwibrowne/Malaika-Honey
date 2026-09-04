@@ -13,7 +13,7 @@
  * (see docs/Release-Management.md) - the old cache is deleted on
  * activate, so a stale shell can never get permanently stuck.
  */
-const CACHE_NAME = 'malaika-shell-v0.9.0';
+const CACHE_NAME = 'malaika-shell-v0.9.1';
 
 const SHELL_URLS = [
   './',
@@ -58,6 +58,10 @@ const SHELL_URLS = [
   'assets/icons/favicon-32.png',
   'assets/icons/icon-192.png',
   'assets/icons/icon-512.png',
+  // Maskable variants, referenced by manifest.webmanifest for Android's
+  // adaptive launcher icons.
+  'assets/icons/icon-maskable-192.png',
+  'assets/icons/icon-maskable-512.png',
   'assets/logo/icon-square.png',
   'assets/logo/logo-lockup.png',
 ];
@@ -124,7 +128,16 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put('index.html', res.clone()));
           return res;
         })
-        .catch(() => caches.match('index.html'))
+        // Tries both cache keys because the manifest's start_url is "/" while
+        // the shell is cached under 'index.html' too - depending on how the
+        // app was first opened, only one of them may be populated. Chrome on
+        // Android probes start_url through the service worker while offline
+        // as part of deciding whether the app is installable, so this
+        // fallback returning nothing would cost the WebAPK, not just the
+        // offline reload.
+        .catch(() =>
+          caches.match('index.html').then((cached) => cached || caches.match('./'))
+        )
     );
     return;
   }

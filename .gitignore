@@ -14,3 +14,7 @@ ui-debug.log
 # and netlify.toml). Not committed, so a stale copy can never diverge from
 # the source and corrupt the farmerEdits audit trail.
 admin/js/shared/
+
+# Single-file bundle of the admin app (see .tools/bundle-admin.py) -
+# a manual-deploy escape hatch, regenerated on demand, never the source.
+dist/

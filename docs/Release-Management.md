@@ -70,3 +70,16 @@ Before the **first** Netlify deploy, complete the one-time Console setup in [[Co
 - [ ] Tested offline → online sync at least once (airplane mode toggle) if the change touches data writes.
 - [ ] [[Changelog]] updated.
 - [ ] No secrets or real farmer data committed (check `.gitignore` coverage — see [[Config-Management]]).
+
+
+### Single-file fallback for a manual Netlify deploy
+
+If a Git-based deploy isn't available, the whole management app can be bundled into one self-contained `dist/index.html`:
+
+```bash
+python3 .tools/bundle-admin.py
+```
+
+It inlines the CSS, all modules (each wrapped in its own scope, since e.g. `farmers.js` and `purchases.js` both declare a module-level `cache`), and the logos as data URIs. Only the Firebase SDK stays remote. The result is ~480 KB and can be dragged onto Netlify on its own.
+
+**This is an escape hatch, not the normal path.** It is a build artifact — `dist/` is gitignored, and `admin/` remains the source. Regenerate it after any change to the admin app, or you will deploy a stale copy.

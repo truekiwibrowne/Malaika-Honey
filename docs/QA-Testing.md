@@ -46,6 +46,30 @@ Serve `admin/` locally (`.tools/sync-admin-shared.sh` first, so `admin/js/shared
 - [ ] After deploying, sign in **from the Netlify URL** and load the dashboard. This is where a missing authorized domain or an API-key HTTP-referrer restriction shows up (see [[Config-Management]]) — it works on localhost and fails only in production.
 - [ ] Confirm the field app on Firebase Hosting is entirely unaffected by an admin deploy.
 
+## PWA installability (Android + iOS)
+
+Android was adding the app as a browser shortcut rather than installing it (v0.9.1). These checks stop that regressing. **The desktop checks are necessary but not sufficient — only a real handset proves a WebAPK was built.**
+
+### Desktop (Chrome DevTools)
+- [ ] **Application → Manifest**: no errors/warnings; `id`, `start_url` and `scope` all read `/`; "Installability" reports the app is installable.
+- [ ] Manifest panel shows **four** icons, two marked maskable. Tick **"Show only the minimum safe area for maskable icons"** and confirm the bee mark is fully inside the circle.
+- [ ] **Application → Service Workers**: status `activated and is running`, **Source scope is `/`** (not a subdirectory — a narrow scope silently downgrades the install to a shortcut).
+- [ ] **Application → Cache Storage → `malaika-shell-v<version>`**: contains the shell, both maskable icons, and an entry for `/` or `/index.html`.
+- [ ] **Lighthouse → Progressive Web App**: installability section passes with no red items.
+- [ ] **Real offline test:** stop the server entirely (not DevTools "Offline", which can mask a broken navigation fallback), then reload. The app shell must still render. This is what Chrome probes to decide installability.
+
+### Android (required — cannot be verified on desktop)
+- [ ] Open the production HTTPS URL in Chrome. Wait ~5 s for the service worker to activate, then use the ⋮ menu.
+- [ ] It must read **"Install app"** (or show an install prompt), **not** "Add to Home screen". That wording is the tell: "Add to Home screen" alone means a shortcut, not a WebAPK.
+- [ ] Install, then launch from the home screen: **no browser URL bar** should be visible.
+- [ ] Confirm the launcher icon is the bee mark, correctly shaped by the launcher (not letterboxed inside a white square, and not clipped).
+- [ ] Put the phone in airplane mode, force-quit the installed app, reopen it — it must load, not show a network error.
+- [ ] Install a second time from the browser and confirm **no duplicate** home-screen entry appears (this is what `id` prevents).
+- [ ] Repeat on **Samsung Internet**, which has its own install path.
+
+### iOS (regression check)
+- [ ] Share → Add to Home Screen, launch, and confirm no Safari chrome and no colour seam at the status bar.
+
 ## Golden-path checklist (run before every release)
 
 ### 0. Login, authorization, and first-run tutorial
