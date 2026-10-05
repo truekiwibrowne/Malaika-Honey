@@ -98,7 +98,11 @@ The **Google** provider needs enabling in Firebase Console → **Authentication*
 
 ## Editing reference data
 
-Products, grades, payment methods, farm sizes, districts, and the New Farmer form's own field set are all admin-editable Firestore collections (see [[Database-Schema]] "Admin-editable reference data"), not hardcoded lists — the same "Console is the admin UI for now" pattern as staff provisioning above, until the dedicated admin app exists.
+**Normal way (v0.10.0+): management app → Settings.** Each list has its own tab; changes reach phones the next time they're online. Settings handles the first-save trap described below automatically (it writes the whole default list with your change), and entries are hidden rather than deleted. Field offices can be renamed, reordered and hidden there; a *new* office is still added from the field app (Home → Add Office) because it also creates the office's sign-in account. Every change is recorded in Settings → Activity log.
+
+The Console steps below still work and are the fallback.
+
+Products, grades, payment methods, farm sizes, districts, and the New Farmer form's own field set are all admin-editable Firestore collections (see [[Database-Schema]] "Admin-editable reference data"), not hardcoded lists.
 
 1. Firebase Console → **Firestore Database** → the relevant collection (`products`, `grades`, `paymentMethods`, `farmSizes`, `districts`, or `newFarmerFields`).
 2. **Add document** to add a new option/field, or open an existing document to edit/deactivate it (set `active: false` rather than deleting, so historical records referencing it stay meaningful).
@@ -124,9 +128,11 @@ The management app (`admin/`, hosted on Netlify) talks to the same Firebase proj
 
 ### Creating a management account
 
-Management accounts are **individual** (a real email address per person), unlike the shared office codes the field app uses — so a record correction is attributable to a person. They are Console-only, deliberately: there is no self-service signup and no way to grant the admin role from inside either app.
+Management accounts are **individual** (a real email address per person), unlike the shared office codes the field app uses — so a record correction is attributable to a person. Creating the *account* is Console-only, deliberately: there is no self-service signup. Granting the admin role to an existing approved account can be done by another admin in Settings → Staff access (v0.10.0).
 
 1. Firebase Console → Authentication → Users → **Add user**, with the person's real email address and a password.
 2. Firestore → `allowedStaff` → add a document whose **ID is that email address**, with a field `role` = `admin` (string).
+
+Once one admin exists, further admins can be made — and access revoked — from management Settings → Staff access (never on your own account). The Console route:
 
 To revoke management access, remove the `role` field (leaves them as ordinary approved staff) or delete the `allowedStaff` document (removes all access). Also disable the Auth user if the person has left — that takes effect immediately server-side, whereas an `allowedStaff` change can lag on a device with a cached authorization (see [[Risk-Register]] R17).

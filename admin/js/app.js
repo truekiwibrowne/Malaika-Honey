@@ -20,6 +20,11 @@ addRoute('/dashboard', async () => {
   const { renderDashboard } = await import('./screens/dashboard.js');
   renderDashboard(root);
 });
+addRoute('/regions', async () => {
+  showLoading('Loading map…');
+  const { renderRegions } = await import('./screens/regions.js');
+  renderRegions(root);
+});
 addRoute('/farmers', async () => {
   showLoading('Loading farmers…');
   const { renderFarmers } = await import('./screens/farmers.js');
@@ -40,10 +45,25 @@ addRoute('/purchases/:purchaseId', async (params) => {
   const { renderPurchaseDetail } = await import('./screens/purchaseDetail.js');
   renderPurchaseDetail(root, params);
 });
+addRoute('/import', async () => {
+  showLoading('Loading…');
+  const { renderImportData } = await import('./screens/importData.js');
+  renderImportData(root);
+});
+addRoute('/checks', async () => {
+  showLoading('Checking records…');
+  const { renderDataHealth } = await import('./screens/dataHealth.js');
+  renderDataHealth(root);
+});
+addRoute('/settings', async () => {
+  showLoading('Loading settings…');
+  const { renderSettings } = await import('./screens/settings.js');
+  renderSettings(root);
+});
 addRoute('/login', () => renderLogin(root), { public: true });
 
 function renderNav() {
-  const path = (location.hash.slice(1) || '/dashboard').split('/')[1];
+  const path = (location.hash.slice(1) || '/dashboard').split('?')[0].split('/')[1];
   const link = (href, label, key) =>
     el('a', { href, class: 'nav-link' + (path === key ? ' active' : '') }, label);
   nav.replaceChildren(
@@ -53,8 +73,13 @@ function renderNav() {
     ]),
     el('nav', { class: 'nav-links' }, [
       link('#/dashboard', 'Dashboard', 'dashboard'),
+      link('#/regions', 'Regions & map', 'regions'),
       link('#/farmers', 'Farmers', 'farmers'),
       link('#/purchases', 'Purchases', 'purchases'),
+      el('div', { class: 'nav-sep' }),
+      link('#/import', 'Import & Export', 'import'),
+      link('#/checks', 'Data checks', 'checks'),
+      link('#/settings', 'Settings', 'settings'),
     ]),
     el('div', { class: 'nav-user' }, [
       el('span', { class: 'muted' }, cachedProfile()?.email || ''),
@@ -66,6 +91,11 @@ function renderNav() {
 window.addEventListener('hashchange', () => {
   if (authState.ready && authState.isAdmin) renderNav();
 });
+
+// The router runs before Firebase has restored the session, so on a reload
+// it briefly redirects to #/login - remember where the person was going so
+// a refresh or a pasted link (e.g. #/farmers?district=Arua) lands there.
+let pendingHash = location.hash && !location.hash.startsWith('#/login') ? location.hash : null;
 
 startRouter({
   isAuthenticated: () => authState.ready && authState.isAdmin,
@@ -102,6 +132,7 @@ onAuthChange(async (user) => {
   authState = { ready: true, user, isAdmin: true };
   shell.classList.remove('signed-out');
   renderNav();
-  if (!location.hash || location.hash === '#/login') navigate('#/dashboard');
-  else navigate(location.hash);
+  const target = pendingHash || (!location.hash || location.hash === '#/login' ? '#/dashboard' : location.hash);
+  pendingHash = null;
+  navigate(target);
 });

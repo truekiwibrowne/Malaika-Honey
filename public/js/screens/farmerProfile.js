@@ -18,11 +18,26 @@ export async function renderFarmerProfile(root, { frn }) {
 
   const stats = farmer.lifetimeStats || {};
 
+  // Set by the management app (Farmers -> Merge / Deactivate). A merged
+  // record is a duplicate whose purchases now live on another FRN, but its
+  // card may still be in the farmer's pocket - so point staff to the record
+  // that is actually in use rather than hiding this one.
+  const merged = farmer.status === 'merged' && farmer.mergedInto;
+  const statusBanner = merged
+    ? el('a', { href: '#/farmer/' + farmer.mergedInto, class: 'reconcile-banner' }, [
+        iconEl('person'),
+        el('span', {}, 'This is a duplicate record. Open the farmer’s current record: FRN ' + farmer.mergedInto),
+      ])
+    : farmer.status === 'inactive'
+      ? el('div', { class: 'reconcile-banner' }, 'This farmer has been marked inactive by the office.')
+      : null;
+
   mount(
     root,
     el('h1', {}, farmer.fullName),
     el('p', { class: 'welcome' }, 'Farmer profile.'),
     el('div', { class: 'frn-badge' }, 'FRN ' + farmer.frn),
+    statusBanner,
 
     el('div', { class: 'card' }, [
       el('div', { class: 'history-item', style: 'border:none;background:none;padding:4px 0' }, [
@@ -50,7 +65,7 @@ export async function renderFarmerProfile(root, { frn }) {
       ]),
     ]),
 
-    el('a', { href: '#/buy/' + farmer.frn, class: 'btn btn-yellow' }, [iconEl('honeyJar'), 'Buy Produce']),
+    merged ? null : el('a', { href: '#/buy/' + farmer.frn, class: 'btn btn-yellow' }, [iconEl('honeyJar'), 'Buy Produce']),
     el('a', { href: '#/history/' + farmer.frn, class: 'btn btn-blue' }, [iconEl('history'), 'History']),
     el('a', { href: '#/card/' + farmer.frn, class: 'btn btn-outline' }, [iconEl('idCard'), 'Farmer Card']),
     el('a', { href: '#/farmer/' + farmer.frn + '/edit', class: 'btn btn-secondary' }, [iconEl('edit'), 'Edit Details'])

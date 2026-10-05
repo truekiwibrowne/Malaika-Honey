@@ -1,13 +1,25 @@
-import { el, mount, spinner, table, formatUgx, formatKg, formatDate } from '../lib/ui.js';
-import { fetchAllPurchases } from '../lib/data.js';
+import { el, mount, spinner, table, formatUgx, formatKg, formatDate, hashQuery, exportButtons } from '../lib/ui.js';
+import { fetchAllPurchases, fetchAllFarmers, loadDistrictResolver } from '../lib/data.js';
 import { printPurchaseReport } from '../lib/print.js';
+import { exportPurchases } from '../lib/exporters.js';
 
 let cache = null;
 
 export async function renderPurchases(root) {
   mount(root, spinner('Loading purchases…'));
+  // Farmers + districts only feed the District/Region export columns, so
+  // they load alongside and never block the list if they fail.
+  let farmers = [];
+  let resolveDistrict = () => null;
   try {
-    cache = await fetchAllPurchases();
+    const [list, farmerList, geoCtx] = await Promise.all([
+      fetchAllPurchases(),
+      fetchAllFarmers().catch(() => []),
+      loadDistrictResolver().catch(() => null),
+    ]);
+    cache = list;
+    farmers = farmerList;
+    if (geoCtx) resolveDistrict = geoCtx.resolveDistrict;
   } catch (err) {
     console.error(err);
     mount(root, el('div', { class: 'empty-state' }, 'Could not load purchases: ' + (err.message || 'unknown error')));
@@ -26,6 +38,10 @@ export async function renderPurchases(root) {
     ...[...new Set(cache.map((p) => p.recordedBy).filter(Boolean))].sort().map((r) => el('option', { value: r }, r)),
   ]);
   const unverifiedOnly = el('input', { type: 'checkbox', id: 'unverified-only' });
+  const params = hashQuery();
+  unverifiedOnly.checked = params.get('unmatched') === '1';
+  const importId = params.get('import');
+  if (params.get('q')) searchInput.value = params.get('q');
 
   const summary = el('div', { class: 'result-summary' });
   const results = el('div');
@@ -39,6 +55,7 @@ export async function renderPurchases(root) {
       if (productSelect.value && p.product !== productSelect.value) return false;
       if (recordedBySelect.value && p.recordedBy !== recordedBySelect.value) return false;
       if (unverifiedOnly.checked && !p.frnUnverified) return false;
+      if (importId && p.importId !== importId) return false;
       if (!q) return true;
       return [p.farmerNameSnapshot, p.frn, p.receiptNo].some((v) => String(v || '').toLowerCase().includes(q));
     });
@@ -50,6 +67,7 @@ export async function renderPurchases(root) {
     if (productSelect.value) parts.push(productSelect.value);
     if (recordedBySelect.value) parts.push('recorded by ' + recordedBySelect.value);
     if (unverifiedOnly.checked) parts.push('unmatched only');
+    if (importId) parts.push('import ' + importId);
     if (searchInput.value.trim()) parts.push('matching “' + searchInput.value.trim() + '”');
     return parts.length ? parts.join(' · ') : 'All purchases';
   }
@@ -92,8 +110,14 @@ export async function renderPurchases(root) {
     root,
     el('div', { class: 'page-head' }, [
       el('h1', {}, 'Purchases'),
-      el('button', { class: 'btn btn-outline btn-sm', onClick: () => printPurchaseReport(filtered(), filterSummary()) }, 'Print report'),
+      el('div', { class: 'head-actions' }, [
+        ...exportButtons((format) => exportPurchases(filtered(), format, { resolveDistrict, farmers })),
+        el('button', { class: 'btn btn-outline btn-sm', onClick: () => printPurchaseReport(filtered(), filterSummary()) }, 'Print report'),
+      ]),
     ]),
+    importId
+      ? el('div', { class: 'notice' }, ['Showing purchases added by import ', el('strong', {}, importId), '. ', el('a', { href: '#/purchases' }, 'Show all')])
+      : null,
     el('div', { class: 'filter-bar' }, [
       searchInput,
       fromInput,

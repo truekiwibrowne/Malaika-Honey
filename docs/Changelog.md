@@ -4,6 +4,40 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-05
+
+The management app grows from a read-and-correct tool into the place the office actually runs the programme from: where farmers are, how buying is trending, getting data in and out, and the settings that used to need the Firebase Console.
+
+### Added — management app
+- **Regions & map** (`#/regions`). A map of Uganda with every district shaded by the chosen measure (farmers, weight or value) and a **numbered pin** on each district showing its farmer count, plus region totals (Central / Eastern / Northern / Western) and a district table. Click a pin or district for its figures and a link to its farmers. A second **GPS view** clusters the farmers registered with a GPS fix (counts in each cluster) and states its coverage, because GPS is only captured since v0.9.0 and often missing.
+  - District outlines, region assignment and pin points come from the Uganda Bureau of Statistics 2020 boundaries (135 districts) via geoBoundaries, CC BY 3.0 IGO — built once by `scripts/build-uganda-geo.mjs` into `admin/assets/geo/uganda-districts.json` (79 KB). Matching is forgiving of spelling (`Sembabule`/`Ssembabule`, `Fort Portal` → Kabarole, `Madi-Okollo`); anything still unrecognised is listed with a fix-it link.
+- **Dashboard trends.** A period picker (30/90 days, this month/year, 12 months, all time, custom), six headline figures each compared with the previous equal period, and five charts: purchases over time (weight / value / count), weight by product, average price per kg by product, quality (grade) mix, and new registrations — plus by-product, by-region, by-office and top-supplier tables for the period. Every chart has a **Table** view. Colours are a colour-blind-validated set, assigned by each product's fixed position so a product keeps its colour across charts.
+- **Export to Excel and CSV** (Backlog 3.3) from the Farmers and Purchases lists (respecting the current filters) and a full two-sheet workbook from **Import & Export**. Phone numbers and FRNs are written as text (no lost leading zeros), missing GPS stays blank, answers to admin-added form questions get their own columns, and CSV cells that would execute as formulas in Excel are neutralised.
+- **Import farmers and purchases** from Excel or CSV, **without ever overwriting**. Template download → upload → automatic column matching (adjustable) → a row-by-row preview of what will be added, skipped (already exists) or rejected (and why) → confirm. Rows matching an existing FRN, phone number (`+256 772…` and `0772…` are the same number) or purchase are skipped; writes run in transactions that re-check each record so nothing added meanwhile is clobbered; purchases get content-derived ids, so **importing the same file twice adds nothing the second time**. Imported purchases update farmers' lifetime totals exactly as a field purchase does. Farmers without an FRN get one minted from a freshly claimed device code, so imported FRNs can never collide with a phone's. Every import is tagged with a batch id and logged.
+- **Merge duplicate farmers** (Backlog 3.4): choose which record to keep; the duplicate's purchases move to it with its lifetime totals, blank fields can be filled from the duplicate, and the duplicate is kept read-only as `status: 'merged'` pointing to the survivor — one atomic batch, recorded in both edit histories.
+- **Deactivate / reactivate a farmer** (with a required reason). Nothing is deleted.
+- **Data checks** (`#/checks`): lifetime totals recomputed from purchases with a one-click correction (Backlog 3.8, closes the detection gap in Risk Register R38); likely duplicates (same name + district, or the same phone written differently) each one click from Merge; unmatched purchases; farmers who can't be placed on the map; purchases without a receipt number.
+- **Settings** (Backlog 2.16, 2.18): edit products, grades, payment methods, farm sizes, districts (with optional region / map position), field offices (rename, reorder, hide) and the New Farmer form's questions; **Staff access** — approve sign-in requests, make or remove admins, revoke access; and an **Activity log**. The first save to a collection still on its built-in defaults writes the complete default list too, so adding one product can never make the others vanish from phones. Entries are retired (hidden), never deleted.
+- **`adminAudit`** — an append-only log of imports, merges, deactivations, recalculations, settings and staff changes, shown in Settings → Activity log.
+
+### Added — field app
+- A farmer **merged** in the management app shows a banner on its profile pointing to the record now in use (and no Buy Produce button). A purchase typed against a merged FRN — say from an old card — is credited to the surviving farmer. An **inactive** farmer's profile says so.
+
+### Changed
+- `firestore.rules`: admins can create/update (never delete) the reference-data collections and update field offices; list the staff roster; change another account's role or revoke another account's access (never their own — so the last admin can't lock themselves out); new admin-only, append-only `adminAudit`. Non-admin accounts are unchanged. **Must be deployed** — see [[Release-Management]].
+- Reference-data defaults moved from `referenceData.js` into a dependency-free `public/js/lib/referenceDefaults.js`, shared with the management app (copied at deploy time like `farmerFields.js`) so Settings seeds exactly what phones fall back to.
+- Chart.js, Leaflet (+ markercluster) and SheetJS load on demand, pinned to exact versions with Subresource Integrity hashes. SheetJS comes from its own CDN at 0.20.3: the npm/cdnjs copy (0.18.5) has known vulnerabilities when parsing crafted files, which is exactly what Import does.
+
+### Fixed — management app
+- Reloading or pasting a deep link (e.g. `#/farmers?district=Arua`) while signed in landed on the Dashboard; it now opens the page asked for.
+- Day-based figures used UTC (`toISOString()`), so between midnight and 3am in Uganda "today" was yesterday. Now local time.
+- Weights now show thousands separators (10,529.4 kg).
+
+### Verified
+Against the Firestore + Auth emulators with the new rules loaded and ~520 seeded purchases: every screen; import of farmers and purchases (each add/skip/error row predicted and confirmed, written documents inspected, lifetime totals exact, re-import adds nothing, a forced stale row is refused by the transaction); merge, deactivate and totals correction; Settings first-save seeding; staff approval; exports read back; field-app merged banner and purchase redirect; and a final Data check showing every farmer's totals still match their purchases. Twelve rule checks pass, including: non-admins cannot write settings, list staff or write the audit log; an admin cannot revoke or demote themselves, delete settings, farmers or audit entries, or slip other fields into a role change.
+
+**Not verified from here:** the production deploy (rules + Netlify) and real-device use.
+
 ## [0.9.1] - 2026-08-25
 
 ### Fixed — Android PWA installability

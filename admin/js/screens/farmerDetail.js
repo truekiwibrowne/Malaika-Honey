@@ -1,5 +1,8 @@
-import { el, mount, spinner, table, toast, formatUgx, formatKg, formatDate, formatDateTime, formatLocation, mapsLink } from '../lib/ui.js';
-import { fetchFarmer, fetchPurchasesForFarmer, fetchFarmerEdits, updateFarmerAsAdmin, findFarmerByPhone } from '../lib/data.js';
+import { el, mount, spinner, table, toast, formatUgx, formatKg, formatDate, formatDateTime, formatLocation, mapsLink, openDialog, hashQuery } from '../lib/ui.js';
+import { fetchFarmer, fetchPurchasesForFarmer, fetchFarmerEdits, updateFarmerAsAdmin, findFarmerByPhone, setFarmerStatus } from '../lib/data.js';
+import { navigate } from '../router.js';
+import { openMergeDialog } from './mergeDialog.js';
+import { statusTag } from './farmers.js';
 import { printFarmerRecord, printPurchaseReceipt } from '../lib/print.js';
 import { farmerToFieldValues } from '../shared/farmerFields.js';
 
@@ -125,19 +128,96 @@ export async function renderFarmerDetail(root, { frn }) {
   );
 
   const stats = farmer.lifetimeStats || {};
+  const status = farmer.status || 'active';
+  const merged = status === 'merged';
+
+  // A merged record is history only - its purchases now live on the kept
+  // record, so editing it here would edit a farmer nobody uses.
+  if (merged) {
+    form.querySelectorAll('input, select, button').forEach((n) => (n.disabled = true));
+  }
+
+  async function changeStatus(next) {
+    const reason = await openDialog(next === 'inactive' ? 'Deactivate farmer' : 'Reactivate farmer', (close) => {
+      const input = el('input', { type: 'text', placeholder: next === 'inactive' ? 'e.g. Stopped beekeeping, moved away, deceased' : 'Optional' });
+      return [
+        el('p', {}, next === 'inactive'
+          ? farmer.fullName + ' will be marked inactive. Nothing is deleted - their purchases and totals stay, and they can be reactivated at any time. Field staff see an “inactive” notice on the profile.'
+          : farmer.fullName + ' will be marked active again.'),
+        el('div', { class: 'field' }, [el('label', {}, 'Reason' + (next === 'inactive' ? ' *' : '')), input]),
+        el('div', { class: 'dialog-actions' }, [
+          el('button', { type: 'button', class: 'btn btn-secondary btn-sm', onClick: () => close() }, 'Cancel'),
+          el('button', {
+            type: 'button',
+            class: 'btn btn-sm ' + (next === 'inactive' ? 'btn-danger' : 'btn-green'),
+            onClick: () => {
+              if (next === 'inactive' && !input.value.trim()) {
+                input.focus();
+                input.classList.add('invalid');
+                return;
+              }
+              close(input.value.trim() || '');
+            },
+          }, next === 'inactive' ? 'Deactivate' : 'Reactivate'),
+        ]),
+      ];
+    });
+    if (reason === undefined) return;
+    try {
+      await setFarmerStatus(farmer, next, reason);
+      toast(next === 'inactive' ? 'Farmer deactivated.' : 'Farmer reactivated.', 'success');
+      renderFarmerDetail(root, { frn });
+    } catch (err) {
+      console.error(err);
+      toast('Could not update: ' + (err.message || 'please try again.'), 'error');
+    }
+  }
+
+  async function startMerge(presetFrn) {
+    const keptFrn = await openMergeDialog(farmer, presetFrn);
+    if (!keptFrn) return;
+    if (keptFrn === farmer.frn) renderFarmerDetail(root, { frn });
+    else navigate('#/farmers/' + keptFrn);
+  }
 
   mount(
     root,
     el('div', { class: 'page-head' }, [
       el('div', {}, [
-        el('h1', {}, farmer.fullName || farmer.frn),
+        el('h1', {}, [farmer.fullName || farmer.frn, ' ', statusTag(farmer)]),
         el('p', { class: 'muted' }, farmer.frn + ' · ' + (farmer.village || '—') + ', ' + (farmer.district || '—')),
       ]),
       el('div', { class: 'head-actions' }, [
         el('a', { href: '#/farmers', class: 'btn btn-secondary btn-sm' }, 'Back'),
         el('button', { class: 'btn btn-outline btn-sm', onClick: () => printFarmerRecord(farmer, purchases) }, 'Print record'),
+        merged ? null : el('button', { class: 'btn btn-outline btn-sm', onClick: () => startMerge() }, 'Merge…'),
+        merged
+          ? null
+          : status === 'inactive'
+            ? el('button', { class: 'btn btn-outline btn-sm', onClick: () => changeStatus('active') }, 'Reactivate')
+            : el('button', { class: 'btn btn-outline-danger btn-sm', onClick: () => changeStatus('inactive') }, 'Deactivate'),
       ]),
     ]),
+
+    merged
+      ? el('div', { class: 'notice notice-warn' }, [
+          el('strong', {}, 'Merged duplicate. '),
+          'This record was merged into ',
+          el('a', { href: '#/farmers/' + farmer.mergedInto }, farmer.mergedInto),
+          (farmer.mergedBy ? ' by ' + farmer.mergedBy : '') + (farmer.mergedAt ? ' on ' + formatDate(farmer.mergedAt) : '') + '. Its purchases now belong to that farmer; it is kept read-only for history.',
+        ])
+      : status === 'inactive'
+        ? el('div', { class: 'notice notice-warn' }, [
+            el('strong', {}, 'Inactive. '),
+            (farmer.statusReason ? farmer.statusReason + ' — ' : '') + 'marked by ' + (farmer.statusChangedBy || 'an admin') + (farmer.statusChangedAt ? ' on ' + formatDate(farmer.statusChangedAt) : '') + '.',
+          ])
+        : null,
+    farmer.mergedFrns && farmer.mergedFrns.length
+      ? el('p', { class: 'muted' }, ['Duplicates merged into this record: ', ...farmer.mergedFrns.flatMap((m, i) => [i ? ', ' : '', el('a', { href: '#/farmers/' + m }, m)])])
+      : null,
+    farmer.importId
+      ? el('p', { class: 'muted' }, ['Added by import ', el('a', { href: '#/farmers?import=' + farmer.importId + '&status=all' }, farmer.importId), farmer.importedBy ? ' (' + farmer.importedBy + ')' : ''])
+      : null,
 
     el('div', { class: 'stat-grid' }, [
       el('div', { class: 'stat-card' }, [el('div', { class: 'stat-value' }, formatKg(stats.totalKg)), el('div', { class: 'stat-label' }, 'Lifetime delivered')]),
@@ -193,4 +273,11 @@ export async function renderFarmerDetail(root, { frn }) {
         ))
       : el('p', { class: 'muted' }, 'No edits recorded for this farmer.')
   );
+
+  // Arriving from Data checks -> likely duplicates.
+  const preset = hashQuery().get('merge');
+  if (preset && !merged) {
+    history.replaceState(null, '', '#/farmers/' + frn);
+    startMerge(preset);
+  }
 }

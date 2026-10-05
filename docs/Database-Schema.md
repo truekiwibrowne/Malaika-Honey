@@ -40,7 +40,10 @@ One document per registered farmer. Document ID = FRN.
 | `signatureDate` | string (`YYYY-MM-DD`) | Date the paper/digital agreement was signed |
 | `photoUrl` | string or null | Reserved for future farmer photo on ID card (Firebase Storage URL) |
 | `registeredLocation` | map or null | Where the staff member was when they registered this farmer — `{ lat, lng, accuracyM, capturedAt }`. **Nullable and frequently null**: see "Record location" below |
-| `status` | string enum: `active`, `inactive` | Defaults to `active`; lets office deactivate a farmer without deleting history |
+| `status` | string enum: `active`, `inactive`, `merged` | Defaults to `active`. `inactive` is set from the management app (with `statusReason`, `statusChangedAt`, `statusChangedBy`) — nothing is deleted. `merged` marks a duplicate merged into another record (below) |
+| `mergedInto` | string or absent | Set with `status: 'merged'`: the FRN that now holds this farmer's purchases. The field app redirects a profile view and any new purchase to it. Also `mergedAt`, `mergedBy` |
+| `mergedFrns` | array of string or absent | On the surviving record: the duplicates merged into it |
+| `importId` | string or absent | Set when the farmer was added by a management-app import (`IMP-YYYYMMDD-XXXX`), with `importedBy`, `importedAt`, `importRow`. `registeredBy` is `'import'` and `registeredAt` is the date given in the file, else the import time |
 | `registeredBy` | string | Signed-in staff member's identifier (from Firebase Auth, see "Staff accounts" below) |
 | `registeredAt` | timestamp | Server timestamp, set once |
 | `updatedAt` | timestamp | Server timestamp, set on every edit |
@@ -79,6 +82,8 @@ One document per honey/product intake. Document ID = Firestore auto-ID.
 | `frnUnverified` | boolean | `true` if, at the moment this purchase was saved, the typed FRN wasn't found in this device's local cache (commonly because the device was offline and had never seen that farmer before, or because of a typo). The purchase is still saved either way — see [[System-Architecture]] "Offline behavior in detail" |
 | `originalTypedFrn` | string or null | Set only when `frnUnverified` is `true` — preserves exactly what staff typed, for the `/reconcile` screen and for audit if the eventual match turns out wrong |
 | `recordedLocation` | map or null | Where the staff member was when they recorded this purchase — same shape as `farmers.registeredLocation`. **Nullable and frequently null**: see "Record location" below |
+| `mergedFromFrn` | string or absent | Set when the purchase was moved by a farmer merge: the FRN it was originally recorded against |
+| `importId` | string or absent | Set when added by a management-app import, with `importedBy` and `importRow`. Imported purchases have a **content-derived document id** (`imp-` + a hash of FRN + date + receipt number, or FRN + date + product + weight when there is no receipt) — which is what makes re-importing the same file a no-op |
 
 **Required composite indexes** (`firestore.indexes.json`):
 - `frn ASC, purchaseDate DESC` — powers the farmer History screen (all purchases for one FRN, newest first).
@@ -130,6 +135,10 @@ The field app never edits a purchase, so every document here comes from the mana
 
 **Editing a purchase must correct the farmer's `lifetimeStats`.** Those totals are accumulated from `increment()` deltas and never recomputed from scratch (see `purchases` above for why transactions are avoided), so changing a saved weight or price without applying the **difference** would silently desynchronise a farmer's lifetime figures from their actual purchases. `updatePurchaseAsAdmin` applies that delta inside the same `writeBatch` as the purchase update and the audit record, so the three can't diverge. `lastPurchaseAt` is a max rather than a sum, so it can't be corrected by a delta — it is recomputed in a follow-up write, deliberately after the batch, since it is a derived convenience value and the ledger matters more.
 
+### `adminAudit/{entryId}`
+
+Append-only log of management-app actions that aren't a single farmer/purchase edit (v0.10.0, `admin/js/lib/audit.js`): `{ schemaVersion, action, target, summary, details, by, byEmail, at, atLocal }`. `action` is a dotted verb — `import.farmers`, `import.purchases`, `farmer.merge`, `farmer.deactivate`, `farmer.reactivate`, `farmer.recalculate`, `settings.update`, `staff.role`, `staff.revoke`, `staff.approve`, `staff.reject`. Where the action is a single batch, the entry is written in the same batch, so the change cannot exist without it. Admin-only to read or create; `update`/`delete` rejected. Shown in management Settings → Activity log.
+
 ### `devices/{deviceCode}`
 
 Registry of device codes used to mint collision-free FRNs without any server coordination at write time.
@@ -138,6 +147,7 @@ Registry of device codes used to mint collision-free FRNs without any server coo
 |---|---|---|
 | `deviceCode` | string | 3 characters from `[A-Z0-9]` (46,656 combinations), generated once per device and cached in `localStorage` |
 | `registeredAt` | timestamp | Server timestamp, set the first time this device is online after generating its code |
+| `kind`, `importId` | string or absent | `kind: 'import'` for a code claimed by a management-app import to mint FRNs for farmers without one — each import claims its own, so imported FRNs follow the same collision-free scheme as a phone's |
 
 **FRN format:** `MH` + `deviceCode` + a locally-incremented sequence number zero-padded to 6 digits, e.g. `MHA1000042`. The sequence number lives in `localStorage` on the device and increments synchronously with no network dependency, so `createFarmer` never needs a server round-trip — unlike the original shared-counter-plus-transaction design (`counters/frnCounter`, now retired), which failed outright offline instead of queuing (see [[Risk-Register]] R3). Two devices can never mint the same FRN, by construction, without needing to coordinate: the `deviceCode` half guarantees no cross-device collision, and the local sequence guarantees no same-device collision.
 
@@ -154,7 +164,7 @@ The `devices` collection itself is a best-effort, self-check side record, not lo
 **Important:** each collection ships with a hardcoded fallback array (today's exact values) in `referenceData.js`, used only when the *live* fetch returns empty — this keeps the app fully usable offline on a fresh install with zero prior sync. Once an admin adds even one document to a previously-empty collection, the fallback stops applying entirely for that collection (it's an all-or-nothing swap, not a merge) — so seeding a collection for the first time should include every value meant to survive, not just the one being added.
 
 - `products/{id}`, `grades/{id}`, `paymentMethods/{id}`, `farmSizes/{id}` — each `{ label, order, active }`.
-- `districts/{id}` — `{ name, country, order, active }`. `country` is a code like `'UG'` (see "Country" below); districts with no `country` field are treated as visible everywhere.
+- `districts/{id}` — `{ label, country, order, active }`, plus optional `region` (`Central`/`Eastern`/`Northern`/`Western`), `lat`, `lng` (set in management Settings; override the built-in UBOS 2020 district data used by the Regions map, and needed only for a district that data doesn't recognise). The document id is the district name — the New Farmer form stores the id on the farmer. `country` is a code like `'UG'` (see "Country" below); districts with no `country` field are treated as visible everywhere.
 - `newFarmerFields/{id}` — the New Farmer form's schema (see "New Farmer form schema" below).
 
 #### New Farmer form schema

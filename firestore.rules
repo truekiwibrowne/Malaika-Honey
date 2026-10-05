@@ -1,9 +1,10 @@
 rules_version = '2';
 
 // Staff must be signed in (Firebase Auth, Google Sign-In) AND their email
-// must be on the allowedStaff allowlist for every operation below. Every
-// approved staff account currently has identical access - there is no
-// admin/field-staff role distinction yet (see docs/Backlog.md).
+// must be on the allowedStaff allowlist for every operation below. Farmer
+// and purchase data is open to every approved account (the field app's
+// search depends on it); configuration, staff access and the admin audit
+// log are admin-only (isAdmin below).
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -29,21 +30,27 @@ service cloud.firestore {
     // their own approval status); an admin may additionally read ANY
     // entry - needed to check whether an allowedStaff doc already exists
     // for a given email before approving a signupRequests entry for it
-    // (see adminApprovals.js approveRequest) - and create new entries, but
-    // never list the roster or update/delete an existing entry from the
-    // client - revoking access or editing roles stays a Console-only
-    // action.
+    // (see adminApprovals.js approveRequest) - and create new entries.
+    //
+    // Since v0.10.0 an admin can also list the roster, change another
+    // account's role, and revoke another account's access (delete) from the
+    // management app's Settings -> Staff access (Backlog 2.18). Never their
+    // OWN document: an admin cannot demote or revoke themselves, so a
+    // mis-click can't lock the last admin out - that stays a Console fix.
     match /allowedStaff/{email} {
       allow get: if request.auth != null && (request.auth.token.email == email || isAdmin());
+      allow list: if isAdmin();
       allow create: if isAdmin();
       // A signed-in user may update ONLY their own fcmTokens array (to
       // register/unregister this device for push notifications - see
       // docs/Push-Notifications.md) and nothing else on their own
       // document. role/addedAt stay immutable from the client either way,
       // so this can never be used to self-grant admin.
-      allow update: if request.auth != null && request.auth.token.email == email
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmTokens']);
-      allow list, delete: if false;
+      allow update: if (request.auth != null && request.auth.token.email == email
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmTokens']))
+        || (isAdmin() && request.auth.token.email != email
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'roleUpdatedAt', 'roleUpdatedBy']));
+      allow delete: if isAdmin() && request.auth.token.email != email;
     }
 
     // Created by a signed-in-but-unapproved user for themselves the first
@@ -125,32 +132,50 @@ service cloud.firestore {
     // docs/Config-Management.md "Editing reference data") - drives the
     // Buy Produce and New Farmer forms' dropdown/choice options and, for
     // newFarmerFields, the New Farmer form's field set itself. Read-only
-    // for the field app; entries are only ever added/edited/deactivated
-    // via Firebase Console's Firestore Data tab (or the Admin SDK) until
-    // the admin app exists - same pattern as allowedStaff.
+    // for the field app. Admins add and edit entries from the management
+    // app's Settings screen (v0.10.0). Never deleted: an entry is retired by
+    // setting active: false, because old purchases and farmers still carry
+    // its id and must keep rendering.
     match /products/{productId} {
       allow read: if isApprovedStaff();
-      allow write: if false;
+      allow create, update: if isAdmin();
+      allow delete: if false;
     }
     match /grades/{gradeId} {
       allow read: if isApprovedStaff();
-      allow write: if false;
+      allow create, update: if isAdmin();
+      allow delete: if false;
     }
     match /paymentMethods/{methodId} {
       allow read: if isApprovedStaff();
-      allow write: if false;
+      allow create, update: if isAdmin();
+      allow delete: if false;
     }
     match /farmSizes/{sizeId} {
       allow read: if isApprovedStaff();
-      allow write: if false;
+      allow create, update: if isAdmin();
+      allow delete: if false;
     }
     match /districts/{districtId} {
       allow read: if isApprovedStaff();
-      allow write: if false;
+      allow create, update: if isAdmin();
+      allow delete: if false;
     }
     match /newFarmerFields/{fieldId} {
       allow read: if isApprovedStaff();
-      allow write: if false;
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // Append-only log of management actions that aren't a farmer or
+    // purchase edit - imports, merges, deactivations, settings and staff
+    // changes (v0.10.0, written by admin/js/lib/audit.js). Admin-only both
+    // ways, and like the other audit collections never rewritable.
+    match /adminAudit/{entryId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasAll(['action', 'by', 'at']);
+      allow update, delete: if false;
     }
 
     // Deliberately the ONE collection readable with no sign-in at all -
@@ -161,12 +186,12 @@ service cloud.firestore {
     // docs/Risk-Register.md.
     match /fieldOffices/{officeId} {
       allow read: if true;
-      // An admin can add a brand-new office from within the app (see
-      // adminApprovals.js's sibling screen addOffice.js) - editing or
-      // deactivating an existing one stays Console-only for now, same
-      // as every other reference-data collection.
-      allow create: if isAdmin();
-      allow update, delete: if false;
+      // An admin can add a brand-new office from within the field app (see
+      // addOffice.js), and rename, reorder or deactivate one from the
+      // management app's Settings (v0.10.0). Never deleted - its id is the
+      // office account's sign-in identity and appears on old records.
+      allow create, update: if isAdmin();
+      allow delete: if false;
     }
 
     match /{document=**} {

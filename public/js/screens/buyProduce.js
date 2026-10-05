@@ -93,7 +93,7 @@ async function renderPurchaseForm(root, { frn, farmerName }) {
 
         try {
           const totalUgx = weightKg * pricePerKgUgx;
-          const { purchaseId } = await savePurchase({
+          const { purchaseId, frn: savedFrn } = await savePurchase({
             frn,
             product: state.product,
             weightKg,
@@ -103,7 +103,7 @@ async function renderPurchaseForm(root, { frn, farmerName }) {
             paymentMethod: state.paymentMethod,
             receiptNo: receiptInput.value.trim(),
           });
-          navigate('#/buy/' + frn + '/success/' + purchaseId);
+          navigate('#/buy/' + savedFrn + '/success/' + purchaseId);
         } catch (err) {
           console.error(err);
           errorBox.textContent = 'Could not save this purchase. ' + (err.message || 'Please try again.');

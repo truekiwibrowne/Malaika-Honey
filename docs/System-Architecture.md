@@ -75,6 +75,8 @@ The brief separates concerns into two apps sharing the same Firestore database:
 
    The two apps share `public/js/lib/farmerFields.js` (farmer field mapping and diffing, no Firebase imports). It is copied into `admin/js/shared/` by Netlify's build command rather than duplicated by hand, because both apps write `farmerEdits` audit records from that logic and any drift between them would silently corrupt the audit trail. `admin/js/shared/` is gitignored for the same reason — there is exactly one source of truth, in `public/`.
 
+   Since v0.10.0 the management app also owns configuration (Settings), bulk import/export, merging and the Regions map. Its third-party libraries (Chart.js, Leaflet, SheetJS) load on demand from pinned, integrity-checked URLs (`admin/js/lib/loader.js`), so none of them costs anything until the screen that needs it opens. `public/js/lib/referenceDefaults.js` is shared the same way as `farmerFields.js`.
+
 Splitting them into two deployable apps (rather than one app with hidden admin routes) keeps the field app's bundle and permissions minimal, which matters for load speed on cheap Android phones and for keeping the attack surface small before Auth is added.
 
 ## Offline behavior in detail

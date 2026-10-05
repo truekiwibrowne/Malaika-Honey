@@ -300,10 +300,21 @@ export async function searchFarmers(rawQuery) {
  * until reconciliation (see resolveUnverifiedPurchase) confirms the FRN.
  */
 export async function savePurchase(purchaseInput) {
-  const frn = purchaseInput.frn.trim().toUpperCase();
+  let frn = purchaseInput.frn.trim().toUpperCase();
+  let farmer = await getFarmerFromCache(frn);
+
+  // A duplicate merged away in the management app keeps its document (and
+  // its printed card), but its purchases now belong to the surviving FRN.
+  // Crediting the old one would split the farmer's totals again. If the
+  // surviving record isn't on this device yet, the purchase goes down the
+  // ordinary unverified path below, with the FRN staff typed preserved.
+  if (farmer && farmer.status === 'merged' && farmer.mergedInto) {
+    frn = farmer.mergedInto;
+    farmer = await getFarmerFromCache(frn);
+  }
+
   const farmerRef = doc(db, 'farmers', frn);
   const purchaseRef = doc(collection(db, 'purchases'));
-  const farmer = await getFarmerFromCache(frn);
 
   trackWrite(
     setDoc(purchaseRef, {
@@ -326,7 +337,7 @@ export async function savePurchase(purchaseInput) {
       createdAt: serverTimestamp(),
       syncedFromOffline: !navigator.onLine,
       frnUnverified: !farmer,
-      originalTypedFrn: farmer ? null : frn,
+      originalTypedFrn: farmer ? null : purchaseInput.frn.trim().toUpperCase(),
     }),
     'purchase ' + purchaseRef.id
   );
@@ -343,7 +354,7 @@ export async function savePurchase(purchaseInput) {
     );
   }
 
-  return { purchaseId: purchaseRef.id, verified: !!farmer };
+  return { purchaseId: purchaseRef.id, verified: !!farmer, frn };
 }
 
 /**

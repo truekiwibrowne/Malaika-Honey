@@ -11,10 +11,14 @@ import {
   serverTimestamp,
   increment,
   updateDoc,
+  setDoc,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { db } from './firebase.js';
 import { currentAdminName, currentAdminEmail } from './auth.js';
-import { buildEditableFarmerFields, diffFarmerFields, farmerToFieldValues } from '../shared/farmerFields.js';
+import { auditInBatch, writeAudit } from './audit.js';
+import { loadUgandaGeo, makeDistrictResolver } from './geo.js';
+import { localIso } from './stats.js';
+import { buildEditableFarmerFields, diffFarmerFields, farmerToFieldValues, FIELD_LABELS } from '../shared/farmerFields.js';
 
 /**
  * All Firestore access for the admin app. Reads are plain server reads (no
@@ -124,8 +128,10 @@ function startOfToday() {
   return d;
 }
 
+// Local calendar day, not toISOString() (UTC) - in Uganda that reported
+// the previous day for anything between midnight and 3am.
 function isoDay(d) {
-  return d.toISOString().slice(0, 10);
+  return localIso(d);
 }
 
 /**
@@ -291,3 +297,331 @@ export async function fetchPurchaseEdits(purchaseId) {
     .map((d) => ({ id: d.id, ...d.data() }))
     .sort((a, b) => String(b.editedAtLocal || '').localeCompare(String(a.editedAtLocal || '')));
 }
+
+// ------------------------------------------------------ reference lookups
+
+/** A whole small collection (reference data, staff, requests). */
+export async function fetchCollection(name) {
+  const snap = await getDocs(collection(db, name));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/**
+ * District text -> { name, region, lat, lng } resolver: the built-in UBOS
+ * district data, overridden by anything set in Settings -> Districts. If
+ * the districts collection can't be read the built-in data still works.
+ */
+export async function loadDistrictResolver() {
+  const [geo, overrides] = await Promise.all([
+    loadUgandaGeo(),
+    fetchCollection('districts').catch(() => []),
+  ]);
+  return { geo, resolveDistrict: makeDistrictResolver(geo, overrides), overrides };
+}
+
+// ------------------------------------------------- deactivate / reactivate
+
+function farmerEdit({ frn, changes }) {
+  return {
+    schemaVersion: 1,
+    frn,
+    changes,
+    editedBy: currentAdminName(),
+    editedByEmail: currentAdminEmail(),
+    editedVia: 'admin',
+    deviceCode: null,
+    editedAt: serverTimestamp(),
+    editedAtLocal: new Date().toISOString(),
+    syncedFromOffline: false,
+  };
+}
+
+/**
+ * Marks a farmer inactive (or active again). Nothing is deleted - the
+ * farmer, their purchases and lifetime totals all stay - this only flags
+ * the record (Database-Schema `status`). Written with its farmerEdits and
+ * adminAudit entries in one batch, so the change can't exist without its
+ * trail.
+ */
+export async function setFarmerStatus(farmer, status, reason = '') {
+  const from = farmer.status || 'active';
+  if (from === status) return { changed: false };
+  if (from === 'merged') throw new Error('A merged record cannot be reactivated - use the farmer it was merged into.');
+
+  const batch = writeBatch(db);
+  batch.update(doc(db, 'farmers', farmer.frn), {
+    status,
+    statusReason: reason || null,
+    statusChangedAt: serverTimestamp(),
+    statusChangedBy: currentAdminName(),
+    updatedAt: serverTimestamp(),
+  });
+  batch.set(doc(collection(db, 'farmerEdits')), farmerEdit({
+    frn: farmer.frn,
+    changes: [{ field: 'status', label: 'Status', from, to: status }, ...(reason ? [{ field: 'statusReason', label: 'Reason', from: null, to: reason }] : [])],
+  }));
+  auditInBatch(batch, {
+    action: status === 'inactive' ? 'farmer.deactivate' : 'farmer.reactivate',
+    target: farmer.frn,
+    summary: (status === 'inactive' ? 'Deactivated ' : 'Reactivated ') + farmer.fullName + ' (' + farmer.frn + ')' + (reason ? ': ' + reason : ''),
+    details: { reason: reason || null },
+  });
+  await batch.commit();
+  return { changed: true };
+}
+
+// ------------------------------------------------------------------ merge
+
+// One merge is one atomic batch (Firestore caps a batch at 500 writes):
+// one update per moved purchase plus a handful of fixed writes.
+export const MERGE_MAX_PURCHASES = 480;
+
+const asIso = (v) => (v && typeof v.toDate === 'function' ? localIso(v.toDate()) : v ? String(v).slice(0, 10) : null);
+
+/**
+ * The editable fields where `keep` is blank and `dup` has a value - offered
+ * as "fill in from the duplicate" so a merge never loses information. Uses
+ * the shared farmerFields mapping, so it means exactly what an edit means.
+ */
+export function mergeFillCandidates(keep, dup) {
+  const keepFields = buildEditableFarmerFields({ fullName: keep.fullName || '', phone: keep.phone || '', fieldValues: farmerToFieldValues(keep) });
+  const dupFields = buildEditableFarmerFields({ fullName: dup.fullName || '', phone: dup.phone || '', fieldValues: farmerToFieldValues(dup) });
+  const fills = [];
+  const blank = (v) => v === null || v === undefined || v === '' || v === 0;
+  for (const key of ['dateOfBirth', 'gender', 'email', 'village', 'district', 'farmSize', 'otherCropsOrLivestock', 'avgHarvestKgPerYear']) {
+    if (blank(keepFields[key]) && !blank(dupFields[key])) fills.push({ field: key, label: FIELD_LABELS[key] || key, value: dupFields[key] });
+  }
+  for (const key of ['traditional', 'ktb', 'modern']) {
+    if (blank(keepFields.hives[key]) && !blank(dupFields.hives[key])) fills.push({ field: 'hives.' + key, label: FIELD_LABELS['hives.' + key], value: dupFields.hives[key] });
+  }
+  return fills;
+}
+
+/**
+ * Merges duplicate record `dup` into `keep` (Backlog 3.4).
+ *
+ *  - every purchase recorded against dup moves to keep (frn and name
+ *    snapshot rewritten, `mergedFromFrn` kept on the purchase as provenance);
+ *  - keep's lifetimeStats gain exactly what those purchases contribute, and
+ *    dup's are zeroed - the same increment() contract as everywhere else;
+ *  - dup is NOT deleted: it becomes status 'merged' with mergedInto, so its
+ *    printed card still works (the field app redirects to keep) and its
+ *    history stays readable;
+ *  - optionally, blank fields on keep are filled from dup;
+ *  - farmerEdits entries on both farmers and one adminAudit entry.
+ *
+ * All in ONE writeBatch: a half-merged pair (purchases moved, totals not)
+ * would be worse than either state, so it commits whole or not at all.
+ */
+export async function mergeFarmers({ keep, dup, dupPurchases, fill = [] }) {
+  if (keep.frn === dup.frn) throw new Error('Choose two different farmers.');
+  if (dup.status === 'merged') throw new Error(dup.frn + ' has already been merged into ' + dup.mergedInto + '.');
+  if (keep.status === 'merged') throw new Error(keep.frn + ' is itself a merged record - merge into ' + keep.mergedInto + ' instead.');
+  if (dupPurchases.length > MERGE_MAX_PURCHASES) {
+    throw new Error('This record has ' + dupPurchases.length + ' purchases, more than one merge can move at once (' + MERGE_MAX_PURCHASES + '). Contact support.');
+  }
+
+  const batch = writeBatch(db);
+  let kg = 0;
+  let ugx = 0;
+  let last = asIso(keep.lifetimeStats?.lastPurchaseAt);
+  for (const p of dupPurchases) {
+    batch.update(doc(db, 'purchases', p.id), {
+      frn: keep.frn,
+      farmerNameSnapshot: keep.fullName,
+      mergedFromFrn: dup.frn,
+      updatedAt: serverTimestamp(),
+    });
+    // An unmatched purchase never counted towards dup's totals, so it must
+    // not count towards keep's either - it moves, still unmatched, and the
+    // field app's reconcile screen applies its stats when it's confirmed.
+    if (p.frnUnverified) continue;
+    kg += Number(p.weightKg) || 0;
+    ugx += Number(p.totalUgx) || 0;
+    if (p.purchaseDate && (!last || p.purchaseDate > last)) last = p.purchaseDate;
+  }
+
+  const keepUpdate = {
+    'lifetimeStats.totalKg': increment(kg),
+    'lifetimeStats.totalPaidUgx': increment(ugx),
+    'lifetimeStats.lastPurchaseAt': last || null,
+    mergedFrns: [...(keep.mergedFrns || []), dup.frn],
+    updatedAt: serverTimestamp(),
+  };
+  const keepChanges = [{ field: 'mergedFrns', label: 'Merged in duplicate', from: null, to: dup.frn + ' (' + dupPurchases.length + ' purchases)' }];
+  for (const f of fill) {
+    keepUpdate[f.field] = f.value;
+    keepChanges.push({ field: f.field, label: f.label, from: null, to: f.value });
+  }
+  batch.update(doc(db, 'farmers', keep.frn), keepUpdate);
+
+  batch.update(doc(db, 'farmers', dup.frn), {
+    status: 'merged',
+    mergedInto: keep.frn,
+    mergedAt: serverTimestamp(),
+    mergedBy: currentAdminName(),
+    'lifetimeStats.totalKg': 0,
+    'lifetimeStats.totalPaidUgx': 0,
+    'lifetimeStats.lastPurchaseAt': null,
+    updatedAt: serverTimestamp(),
+  });
+
+  batch.set(doc(collection(db, 'farmerEdits')), farmerEdit({ frn: keep.frn, changes: keepChanges }));
+  batch.set(doc(collection(db, 'farmerEdits')), farmerEdit({
+    frn: dup.frn,
+    changes: [{ field: 'status', label: 'Status', from: dup.status || 'active', to: 'merged into ' + keep.frn }],
+  }));
+  auditInBatch(batch, {
+    action: 'farmer.merge',
+    target: keep.frn,
+    summary: 'Merged ' + dup.fullName + ' (' + dup.frn + ') into ' + keep.fullName + ' (' + keep.frn + '), moving ' + dupPurchases.length + ' purchase' + (dupPurchases.length === 1 ? '' : 's'),
+    details: { keep: keep.frn, dup: dup.frn, purchaseIds: dupPurchases.map((p) => p.id), kgMoved: kg, ugxMoved: ugx, filled: fill.map((f) => f.field) },
+  });
+
+  await batch.commit();
+  return { moved: dupPurchases.length, kg, ugx };
+}
+
+/**
+ * Likely duplicate pairs for the Data checks screen: the same name in the
+ * same district, or the same phone number in a different spelling
+ * (0772.. vs +256772..). Merged records are excluded.
+ */
+export function findLikelyDuplicates(farmers, normalisePhone) {
+  const live = farmers.filter((f) => f.status !== 'merged');
+  const groups = new Map();
+  const add = (key, reason, f) => {
+    if (!groups.has(key)) groups.set(key, { reason, farmers: [] });
+    groups.get(key).farmers.push(f);
+  };
+  for (const f of live) {
+    if (f.fullNameLower) add('n|' + f.fullNameLower.replace(/\s+/g, ' ').trim() + '|' + String(f.district || '').toLowerCase(), 'Same name and district', f);
+    if (f.phone) add('p|' + normalisePhone(f.phone), 'Same phone number', f);
+  }
+  const seen = new Set();
+  return [...groups.values()]
+    .filter((g) => g.farmers.length > 1)
+    .filter((g) => {
+      const sig = g.farmers.map((f) => f.frn).sort().join(',');
+      if (seen.has(sig)) return false;
+      seen.add(sig);
+      return true;
+    });
+}
+
+// ------------------------------------------- lifetime totals reconciliation
+
+/**
+ * Recomputes every farmer's lifetimeStats from their actual purchases and
+ * returns the farmers whose stored totals disagree (Backlog 3.8, Risk
+ * Register R38). lifetimeStats is maintained by increment() deltas from
+ * several writers and never recomputed, so drift is otherwise invisible.
+ *
+ * Only matched purchases count, mirroring how the field app applies stats
+ * (an frnUnverified purchase contributes nothing until reconciled).
+ */
+export function computeStatsDrift(farmers, purchases) {
+  const sums = new Map();
+  for (const p of purchases) {
+    if (!p.frn || p.frnUnverified) continue;
+    const s = sums.get(p.frn) || { kg: 0, ugx: 0, last: null, count: 0 };
+    s.kg += Number(p.weightKg) || 0;
+    s.ugx += Number(p.totalUgx) || 0;
+    s.count += 1;
+    if (p.purchaseDate && (!s.last || p.purchaseDate > s.last)) s.last = p.purchaseDate;
+    sums.set(p.frn, s);
+  }
+  const close = (a, b) => Math.abs((Number(a) || 0) - (Number(b) || 0)) < 0.01;
+  const drift = [];
+  for (const f of farmers) {
+    const actual = sums.get(f.frn) || { kg: 0, ugx: 0, last: null, count: 0 };
+    const stored = f.lifetimeStats || {};
+    const storedLast = asIso(stored.lastPurchaseAt);
+    if (close(stored.totalKg, actual.kg) && close(stored.totalPaidUgx, actual.ugx) && (storedLast || null) === (actual.last || null)) continue;
+    drift.push({ farmer: f, stored: { kg: Number(stored.totalKg) || 0, ugx: Number(stored.totalPaidUgx) || 0, last: storedLast }, actual });
+  }
+  return drift;
+}
+
+/**
+ * Corrects drifted totals by applying the DIFFERENCE with increment(), not
+ * by overwriting - so an offline purchase whose stats update lands between
+ * this check and the write is still counted, rather than erased.
+ */
+export async function fixStatsDrift(rows) {
+  const PER_BATCH = 200; // 2 writes per farmer + 1 audit
+  for (let i = 0; i < rows.length; i += PER_BATCH) {
+    const batch = writeBatch(db);
+    const slice = rows.slice(i, i + PER_BATCH);
+    for (const { farmer, stored, actual } of slice) {
+      batch.update(doc(db, 'farmers', farmer.frn), {
+        'lifetimeStats.totalKg': increment(actual.kg - stored.kg),
+        'lifetimeStats.totalPaidUgx': increment(actual.ugx - stored.ugx),
+        'lifetimeStats.lastPurchaseAt': actual.last,
+        updatedAt: serverTimestamp(),
+      });
+      batch.set(doc(collection(db, 'farmerEdits')), farmerEdit({
+        frn: farmer.frn,
+        changes: [
+          { field: 'lifetimeStats.totalKg', label: 'Lifetime kg (recalculated)', from: stored.kg, to: actual.kg },
+          { field: 'lifetimeStats.totalPaidUgx', label: 'Lifetime paid (recalculated)', from: stored.ugx, to: actual.ugx },
+          { field: 'lifetimeStats.lastPurchaseAt', label: 'Last delivery (recalculated)', from: stored.last, to: actual.last },
+        ],
+      }));
+    }
+    auditInBatch(batch, {
+      action: 'farmer.recalculate',
+      target: null,
+      summary: 'Recalculated lifetime totals for ' + slice.length + ' farmer' + (slice.length === 1 ? '' : 's') + ' from their purchases',
+      details: { frns: slice.map((r) => r.farmer.frn) },
+    });
+    await batch.commit();
+  }
+}
+
+// ----------------------------------------------------------- staff access
+
+export const fetchStaff = () => fetchCollection('allowedStaff');
+export const fetchSignupRequests = () => fetchCollection('signupRequests');
+
+export async function setStaffRole(email, role) {
+  const batch = writeBatch(db);
+  batch.update(doc(db, 'allowedStaff', email), {
+    role: role || null,
+    roleUpdatedAt: serverTimestamp(),
+    roleUpdatedBy: currentAdminName(),
+  });
+  auditInBatch(batch, { action: 'staff.role', target: email, summary: (role === 'admin' ? 'Made ' : 'Removed admin role from ') + email + (role === 'admin' ? ' an admin' : ''), details: { role: role || null } });
+  await batch.commit();
+}
+
+/**
+ * Removes an account from the allowlist. Their Firebase Auth account still
+ * exists but can no longer read or write any data. A field device that is
+ * offline keeps working from its cached approval until it next connects
+ * (see docs/Risk-Register.md) - say so wherever this is offered.
+ */
+export async function revokeStaff(email) {
+  const batch = writeBatch(db);
+  batch.delete(doc(db, 'allowedStaff', email));
+  auditInBatch(batch, { action: 'staff.revoke', target: email, summary: 'Revoked access for ' + email });
+  await batch.commit();
+}
+
+/** Mirrors the field app's adminApprovals.js approveRequest/rejectRequest. */
+export async function resolveSignupRequest(request, approve) {
+  if (approve) {
+    try {
+      await setDoc(doc(db, 'allowedStaff', request.email), { addedAt: serverTimestamp() });
+    } catch (err) {
+      if (err.code !== 'permission-denied') throw err; // already on the allowlist
+    }
+  }
+  await updateDoc(doc(db, 'signupRequests', request.id), {
+    status: approve ? 'approved' : 'rejected',
+    resolvedAt: serverTimestamp(),
+    resolvedBy: currentAdminName(),
+  });
+  await writeAudit({ action: approve ? 'staff.approve' : 'staff.reject', target: request.email, summary: (approve ? 'Approved ' : 'Rejected ') + 'sign-in request from ' + request.email });
+}
+
