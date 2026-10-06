@@ -24,6 +24,11 @@ const LIBS = {
   },
   leaflet: {
     global: 'L',
+    // The shared map picker (shared/mapPicker.js) may already have loaded
+    // Leaflet itself - so "ready" also needs the cluster plugin, and each
+    // script is skipped if what it provides is already there.
+    ready: () => window.L && window.L.markerClusterGroup,
+    skip: [() => !!window.L, () => !!(window.L && window.L.markerClusterGroup)],
     styles: [
       ['https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css', 'sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H'],
       ['https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css', 'sha384-pmjIAcz2bAn0xukfxADbZIb3t8oRT9Sv0rvO+BR5Csr6Dhqq+nZs59P0pPKQJkEV'],
@@ -60,11 +65,18 @@ function addTag(tag, attrs) {
 export function loadLib(name) {
   const lib = LIBS[name];
   if (!lib) return Promise.reject(new Error('Unknown library ' + name));
-  if (window[lib.global] && !pending[name]) return Promise.resolve(window[lib.global]);
+  const ready = lib.ready ? lib.ready() : window[lib.global];
+  if (ready && !pending[name]) return Promise.resolve(window[lib.global]);
   if (!pending[name]) {
     pending[name] = (async () => {
-      await Promise.all((lib.styles || []).map(([href, integrity]) => addTag('link', { rel: 'stylesheet', href, integrity })));
-      for (const [src, integrity] of lib.scripts) await addTag('script', { src, integrity });
+      await Promise.all((lib.styles || [])
+        .filter(([href]) => !document.querySelector('link[href="' + href + '"]'))
+        .map(([href, integrity]) => addTag('link', { rel: 'stylesheet', href, integrity })));
+      for (let i = 0; i < lib.scripts.length; i++) {
+        if (lib.skip && lib.skip[i] && lib.skip[i]()) continue;
+        const [src, integrity] = lib.scripts[i];
+        await addTag('script', { src, integrity });
+      }
       return window[lib.global];
     })().catch((err) => {
       delete pending[name]; // allow a retry after a network blip

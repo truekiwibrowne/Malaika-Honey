@@ -54,3 +54,11 @@ export async function fetchAudit(max = 200) {
   const snap = await getDocs(query(collection(db, 'adminAudit'), orderBy('atLocal', 'desc'), limit(max)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
+
+/**
+ * Tells the app that farmer/purchase/settings data changed, so anything
+ * derived from it - the Data checks badge in the sidebar - recounts.
+ */
+export function notifyDataChanged() {
+  window.dispatchEvent(new Event('mh:data-changed'));
+}

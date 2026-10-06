@@ -4,6 +4,11 @@ import { loadLib } from '../lib/loader.js';
 import { REGIONS, UNKNOWN_REGION } from '../lib/geo.js';
 import { PERIODS, resolvePeriod, inRange, sumPurchases, localIso } from '../lib/stats.js';
 import { BLUE_RAMP } from '../lib/charts.js';
+import { loadCollection } from '../lib/refdata.js';
+
+const isPoint = (p) => !!p && typeof p.lat === 'number' && typeof p.lng === 'number';
+/** Best known position for a farmer: the farm itself, else where they were registered. */
+const farmerPoint = (f) => (isPoint(f.farmLocation) ? { ...f.farmLocation, kind: 'farm' } : isPoint(f.registeredLocation) ? { ...f.registeredLocation, kind: 'registered' } : null);
 
 /**
  * Where farmers are: a map of Uganda with every district shaded by the
@@ -60,9 +65,15 @@ export async function renderRegions(root) {
   }
   mount(root, spinner('Loading map…'));
 
-  let farmers, purchases, geoCtx, L;
+  let farmers, purchases, geoCtx, L, crops;
   try {
-    [farmers, purchases, geoCtx, L] = await Promise.all([fetchAllFarmers(), fetchAllPurchases(), loadDistrictResolver(), loadLib('leaflet')]);
+    [farmers, purchases, geoCtx, L, crops] = await Promise.all([
+      fetchAllFarmers(),
+      fetchAllPurchases(),
+      loadDistrictResolver(),
+      loadLib('leaflet'),
+      loadCollection('cropsLivestock').then((r) => r.entries).catch(() => []),
+    ]);
   } catch (err) {
     console.error(err);
     mount(root, el('div', { class: 'empty-state' }, 'Could not load the map: ' + (err.message || 'unknown error')));
@@ -137,7 +148,7 @@ export async function renderRegions(root) {
       const b = bucket(key);
       b.farmers += 1;
       if ((f.status || 'active') === 'active') b.active += 1;
-      if (f.registeredLocation && typeof f.registeredLocation.lat === 'number') b.gps += 1;
+      if (isPoint(f.farmLocation)) b.gps += 1;
     }
     for (const p of periodPurchases) {
       const f = farmerByFrn.get(p.frn);
@@ -211,7 +222,8 @@ export async function renderRegions(root) {
       const placed = live.length - [...unrecognised.values()].reduce((t, n) => t + n, 0);
       mapNote.textContent = formatNumber(placed) + ' of ' + formatNumber(live.length) + ' farmers placed by district. Pins show the ' + measureLabel + (state.measure === 'farmers' ? '' : ' for ' + period.label.toLowerCase()) + ' in each district. Click a pin or district for details.';
     } else {
-      const withGps = live.filter((f) => f.registeredLocation && typeof f.registeredLocation.lat === 'number');
+      const withGps = live.filter((f) => farmerPoint(f));
+      const farmCount = withGps.filter((f) => farmerPoint(f).kind === 'farm').length;
       const cluster = L.markerClusterGroup({
         showCoverageOnHover: false,
         maxClusterRadius: 50,
@@ -222,18 +234,18 @@ export async function renderRegions(root) {
         },
       });
       for (const f of withGps) {
-        const loc = f.registeredLocation;
+        const loc = farmerPoint(f);
         const m = L.marker([loc.lat, loc.lng], {
-          icon: L.divIcon({ className: 'map-pin-wrap', html: '<span class="map-dot"></span>', iconSize: [14, 14] }),
+          icon: L.divIcon({ className: 'map-pin-wrap', html: '<span class="map-dot' + (loc.kind === 'farm' ? '' : ' map-dot-muted') + '"></span>', iconSize: [14, 14] }),
           title: f.fullName,
         });
         const acc = loc.accuracyM ? ' · accuracy ±' + formatNumber(loc.accuracyM) + ' m' + (loc.accuracyM > 500 ? ' (approximate)' : '') : '';
-        m.bindPopup('<strong>' + esc(f.fullName) + '</strong><br>' + esc(f.frn) + ' · ' + esc(f.village || '') + ', ' + esc(f.district || '') + '<br><span class="muted">Registered here' + acc + '</span><br><a href="#/farmers/' + encodeURIComponent(f.frn) + '">Open farmer →</a>');
+        m.bindPopup('<strong>' + esc(f.fullName) + '</strong><br>' + esc(f.frn) + ' · ' + esc(f.village || '') + ', ' + esc(f.district || '') + '<br><span class="muted">' + (loc.kind === 'farm' ? 'Farm location' : 'Where staff registered them (farm not recorded)') + acc + '</span><br><a href="#/farmers/' + encodeURIComponent(f.frn) + '">Open farmer →</a>');
         cluster.addLayer(m);
       }
       overlay.addLayer(cluster);
-      legendNode.innerHTML = '<div class="legend-title">GPS locations</div><div class="legend-row"><span class="map-pin legend-pin">12</span> group of farmers</div><div class="legend-row"><span class="map-dot"></span> one farmer</div>';
-      mapNote.textContent = formatNumber(withGps.length) + ' of ' + formatNumber(live.length) + ' farmers have a GPS location (captured where staff registered them, since app v0.9.0). The rest are not shown in this view - switch to By district to see everyone.';
+      legendNode.innerHTML = '<div class="legend-title">GPS locations</div><div class="legend-row"><span class="map-pin legend-pin">12</span> group of farmers</div><div class="legend-row"><span class="map-dot"></span> farm</div><div class="legend-row"><span class="map-dot map-dot-muted"></span> where registered</div>';
+      mapNote.textContent = formatNumber(farmCount) + ' farmers have a farm location and ' + formatNumber(withGps.length - farmCount) + ' more are shown where staff registered them (no farm location yet). ' + formatNumber(live.length - withGps.length) + ' have no GPS at all and aren’t in this view - switch to By district to see everyone.';
     }
 
     // ---- tables
@@ -258,7 +270,7 @@ export async function renderRegions(root) {
       el('h2', {}, 'By district'),
       rows.length
         ? table(
-            ['District', 'Region', 'Farmers', 'Active', 'With GPS', 'Delivering', 'Weight', 'Value', 'Avg kg / farmer'],
+            ['District', 'Region', 'Farmers', 'Active', 'Farm GPS', 'Delivering', 'Weight', 'Value', 'Avg kg / farmer'],
             rows.map((r) =>
               el('tr', { class: r.region ? '' : 'row-warn' }, [
                 el('td', {}, el('a', { href: '#/farmers?district=' + encodeURIComponent(r.name) }, r.name)),
@@ -275,6 +287,7 @@ export async function renderRegions(root) {
           )
         : el('div', { class: 'empty-state' }, 'No farmers yet.'),
       el('p', { class: 'muted small' }, 'Weight and value: matched purchases in ' + period.label.toLowerCase() + ', by the farmer’s district. “Avg kg / farmer” divides by farmers who delivered.'),
+      cropsTable(live, crops),
       unrecognised.size
         ? el('div', { class: 'notice notice-warn' }, [
             el('strong', {}, unrecognised.size + ' district name' + (unrecognised.size === 1 ? '' : 's') + ' not recognised: '),
@@ -323,4 +336,31 @@ function legendHtml(breaks, measure, label) {
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/** How many farmers keep each crop/livestock item, and the total amount. */
+function cropsTable(farmers, crops) {
+  const answered = farmers.filter((f) => f.cropsLivestock && Object.keys(f.cropsLivestock).length);
+  const rows = crops
+    .map((c) => {
+      const keepers = farmers.filter((f) => f.cropsLivestock && f.cropsLivestock[c.id] !== undefined);
+      const total = keepers.reduce((t, f) => t + (typeof f.cropsLivestock[c.id] === 'number' ? f.cropsLivestock[c.id] : 0), 0);
+      return { c, count: keepers.length, total };
+    })
+    .filter((r) => r.count || r.c.active !== false)
+    .sort((a, b) => b.count - a.count);
+  return el('div', {}, [
+    el('h2', {}, 'Crops & livestock kept'),
+    answered.length
+      ? table(['Item', 'Type', 'Farmers', 'Share of those asked', 'Total amount'], rows.map((r) =>
+          el('tr', {}, [
+            el('td', {}, r.c.label),
+            el('td', {}, r.c.kind === 'livestock' ? 'Livestock' : 'Crop'),
+            el('td', { class: 'num' }, formatNumber(r.count)),
+            el('td', { class: 'num' }, ((r.count / answered.length) * 100).toFixed(0) + '%'),
+            el('td', { class: 'num' }, r.total ? formatNumber(r.total, 1) + ' ' + (r.c.unit || '') : '—'),
+          ])))
+      : el('p', { class: 'muted' }, 'No farmer has crops or livestock recorded yet - it’s asked on the registration form from v0.11, and can be filled in on each farmer’s page or by import.'),
+    answered.length ? el('p', { class: 'muted small' }, 'Out of ' + formatNumber(answered.length) + ' farmers with crops or livestock recorded. Follows the “Active farmers only” filter above.') : null,
+  ]);
 }

@@ -3,10 +3,7 @@ import { db } from '../lib/firebase.js';
 import { el, mount } from '../lib/ui.js';
 import { createOfficeAccount, officeIdToEmail } from '../lib/auth.js';
 import { iconEl } from '../lib/icons.js';
-
-function slugify(name) {
-  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
-}
+import { officeSlug as slugify } from '../lib/officeAccounts.js';
 
 function renderSuccess(root, name, code) {
   mount(

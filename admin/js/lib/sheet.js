@@ -16,6 +16,7 @@ function cellValue(col, row) {
   // Blank stays blank - a missing GPS reading must never export as 0,0.
   if (v === null || v === undefined || v === '') return '';
   if (col.type === 'number') return Number.isFinite(Number(v)) ? Number(v) : '';
+  if (col.type === 'auto' && typeof v === 'number') return v; // amounts stay summable
   return String(v);
 }
 
@@ -80,6 +81,7 @@ export async function downloadSheets(sheets, baseName, format = 'xlsx') {
       const range = XLSX.utils.decode_range(ws['!ref']);
       columns.forEach((c, ci) => {
         if (c.type === 'number') return;
+        if (c.type === 'auto') return;
         for (let r = 1; r <= range.e.r; r++) {
           const cell = ws[XLSX.utils.encode_cell({ r, c: ci })];
           if (cell) { cell.t = 's'; cell.v = String(cell.v); }

@@ -8,10 +8,11 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { db } from './firebase.js';
 import { currentAdminName } from './auth.js';
-import { writeAudit } from './audit.js';
+import { writeAudit, notifyDataChanged } from './audit.js';
 import { downloadSheets } from './sheet.js';
 import { localIso } from './stats.js';
 import { buildEditableFarmerFields } from '../shared/farmerFields.js';
+import { fetchAllFarmers } from './data.js';
 
 /**
  * Bulk import of farmer registrations and purchases from Excel/CSV.
@@ -58,6 +59,8 @@ const FARMER_FIELDS = [
   { key: 'avgHarvestKgPerYear', header: 'Average harvest (kg/yr)', aliases: ['average harvest (kg/yr)', 'average harvest', 'avg harvest', 'harvest kg per year', 'harvest'], example: '60', type: 'number' },
   { key: 'usesChemicals', header: 'Uses chemicals', aliases: ['uses chemicals', 'chemicals', 'pesticides'], example: 'no', note: 'yes / no.' },
   { key: 'wantsTraining', header: 'Wants training', aliases: ['wants training', 'training', 'interested in training'], example: 'yes', note: 'yes / no.' },
+  { key: 'farmLatitude', header: 'Farm latitude', aliases: ['farm latitude', 'farm lat', 'latitude', 'lat', 'gps latitude', 'gps lat'], example: '3.0204', type: 'number', note: 'Optional: where the farm is (decimal degrees, e.g. 3.0204). Give both latitude and longitude, or neither.' },
+  { key: 'farmLongitude', header: 'Farm longitude', aliases: ['farm longitude', 'farm lng', 'farm long', 'longitude', 'lng', 'long', 'lon', 'gps longitude', 'gps lng'], example: '30.9107', type: 'number' },
   { key: 'registered', header: 'Registered', aliases: ['registered', 'registration date', 'date registered', 'signature date', 'date'], example: '2025-11-02', note: 'Optional: the date the farmer originally registered. Defaults to today.' },
 ];
 
@@ -82,6 +85,35 @@ export const IMPORT_TYPES = {
 
 const normHeader = (h) => String(h).toLowerCase().replace(/[^a-z0-9]/g, '');
 
+/** Header for a crop/livestock item's column, e.g. "Crop: Coffee (acres)". */
+export function cropHeader(item) {
+  return (item.kind === 'livestock' ? 'Livestock: ' : 'Crop: ') + item.label + (item.unit ? ' (' + item.unit + ')' : '');
+}
+
+/**
+ * Finds the file columns that hold crops & livestock: "Crop: Coffee
+ * (acres)" (as exported and in the template), or just "Coffee"/"Goats".
+ * Returns Map(header -> item).
+ */
+export function detectCropColumns(headers, items) {
+  const found = new Map();
+  for (const h of headers) {
+    if (!h) continue;
+    const bare = normHeader(String(h).replace(/^\s*(crops?|livestock)\s*[:\-]\s*/i, '').replace(/\(.*\)\s*$/, ''));
+    const item = items.find((i) => normHeader(i.label) === bare || normHeader(i.id) === bare);
+    if (item && ![...found.values()].includes(item)) found.set(h, item);
+  }
+  return found;
+}
+
+function parseCropCell(raw) {
+  const s = String(raw ?? '').trim().toLowerCase();
+  if (!s || ['no', 'n', '0', 'false', '-'].includes(s)) return null;
+  if (['yes', 'y', 'x', '✓', 'true'].includes(s)) return true;
+  const n = Number(s.replace(/,/g, ''));
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
 /** Maps each field key to the file header that supplies it (or null). */
 export function mapColumns(type, headers) {
   const fields = IMPORT_TYPES[type].fields;
@@ -103,9 +135,13 @@ export function mapColumns(type, headers) {
   return { mapping, unmapped };
 }
 
-export function downloadTemplate(type, format) {
+export function downloadTemplate(type, format, { cropsLivestock = [] } = {}) {
   const { label, fields } = IMPORT_TYPES[type];
-  const columns = fields.map((f) => ({ header: f.header, value: (row) => row[f.key], width: Math.max(12, f.header.length + 2) }));
+  const crops = type === 'farmers' ? cropsLivestock.filter((c) => c.active !== false) : [];
+  const columns = [
+    ...fields.map((f) => ({ header: f.header, value: (row) => row[f.key], width: Math.max(12, f.header.length + 2) })),
+    ...crops.map((c) => ({ header: cropHeader(c), value: () => '', width: cropHeader(c).length + 2 })),
+  ];
   const example = Object.fromEntries(fields.map((f) => [f.key, f.example ?? '']));
   const notes = [
     'Malaika Honey - ' + label + ' import template',
@@ -115,6 +151,7 @@ export function downloadTemplate(type, format) {
     'Importing never changes or overwrites a record that already exists - those rows are skipped and listed in the preview.',
     '',
     ...fields.map((f) => f.header + (f.required ? ' (required)' : '') + (f.note ? ' - ' + f.note : '')),
+    ...(crops.length ? ['Crop / Livestock columns - put the amount (in the unit shown), or "yes" if the farmer has it but the amount isn\u2019t known. Leave blank if not.'] : []),
   ];
   return downloadSheets(
     [
@@ -197,6 +234,14 @@ export function previewImport(type, rows, mapping, ctx) {
 }
 
 function previewFarmers(rows, get, ctx) {
+  const cropCols = detectCropColumns(rows.length ? Object.keys(rows[0]).filter((k) => k !== '__row') : [], ctx.cropsLivestock || []);
+  const villagesByDistrict = new Map();
+  for (const v of ctx.villages || []) {
+    if (v.active === false) continue;
+    const key = String(v.district || '').toLowerCase();
+    if (!villagesByDistrict.has(key)) villagesByDistrict.set(key, []);
+    villagesByDistrict.get(key).push(String(v.label).toLowerCase());
+  }
   const byFrn = new Map(ctx.farmers.map((f) => [f.frn, f]));
   const byPhone = new Map();
   const byNameDistrict = new Map();
@@ -254,6 +299,32 @@ function previewFarmers(rows, get, ctx) {
     if (!district) warnings.push('No district.');
     else if (!ctx.resolveDistrict(district)) warnings.push('District “' + district + '” is not recognised - it won’t appear on the map until it is added in Settings → Districts.');
     if (!get(row, 'village')) warnings.push('No village.');
+    else {
+      const listed = villagesByDistrict.get(String(district).toLowerCase());
+      if (listed && !listed.includes(get(row, 'village').toLowerCase())) warnings.push('Village “' + get(row, 'village') + '” isn’t on the ' + district + ' village list (Settings → Villages).');
+    }
+
+    // Farm GPS: both or neither, numbers, and plausibly in Uganda.
+    let farmLocation = null;
+    const latRaw = get(row, 'farmLatitude');
+    const lngRaw = get(row, 'farmLongitude');
+    if (latRaw || lngRaw) {
+      const lat = parseNumber(latRaw);
+      const lng = parseNumber(lngRaw);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) reasons.push('Farm latitude and longitude must both be numbers (decimal degrees).');
+      else if (Math.abs(lat) > 90 || Math.abs(lng) > 180) reasons.push('Farm GPS ' + latRaw + ', ' + lngRaw + ' isn’t a valid position.');
+      else {
+        farmLocation = { lat, lng };
+        if (!(lat >= -1.6 && lat <= 4.3 && lng >= 29.5 && lng <= 35.1)) warnings.push('Farm GPS ' + lat + ', ' + lng + ' is outside Uganda - latitude and longitude may be swapped.');
+      }
+    }
+
+    const cropsLivestock = {};
+    for (const [header, item] of cropCols) {
+      const v = parseCropCell(row[header]);
+      if (v === undefined) reasons.push(item.label + ': “' + row[header] + '” should be an amount, yes, or blank.');
+      else if (v !== null) cropsLivestock[item.id] = v;
+    }
 
     let status = reasons.length ? 'error' : 'new';
 
@@ -304,6 +375,8 @@ function previewFarmers(rows, get, ctx) {
               avgHarvestKgPerYear: numbers.avgHarvestKgPerYear,
               usesChemicals,
               wantsTraining,
+              farmLocation,
+              cropsLivestock,
             },
           }
         : null,
@@ -527,12 +600,27 @@ export async function commitImport(type, previewRows, { fileName, onProgress = (
         : {}),
     },
   });
+  notifyDataChanged();
   return { importId, ...result };
 }
 
 async function commitFarmers(rows, importId, onProgress) {
   const created = [];
   const raced = [];
+  // The preview checked phone numbers, but it can be stale: a farmer may
+  // have been registered (or the same file imported) since. FRN clashes are
+  // caught inside the transactions below, but a minted FRN is always new,
+  // so phone uniqueness has to be re-checked against live data here.
+  const livePhones = new Set((await fetchAllFarmers()).filter((f) => f.phone).map((f) => normalisePhone(f.phone)));
+  rows = rows.filter((r) => {
+    const key = normalisePhone(r.record.phone);
+    if (livePhones.has(key)) {
+      raced.push(r);
+      return false;
+    }
+    livePhones.add(key);
+    return true;
+  });
   let deviceCode = null;
   let seq = 0;
   const needCode = rows.some((r) => !r.record.frn);

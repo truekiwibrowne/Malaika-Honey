@@ -2,7 +2,7 @@ import { el, mount, spinner, table, toast, confirmDialog, formatDateTime, format
 import { fetchAllFarmers, fetchAllPurchases, loadDistrictResolver } from '../lib/data.js';
 import { loadCollection } from '../lib/refdata.js';
 import { readSheet, downloadSheets, stamp } from '../lib/sheet.js';
-import { IMPORT_TYPES, mapColumns, previewImport, commitImport, downloadTemplate } from '../lib/importer.js';
+import { IMPORT_TYPES, mapColumns, previewImport, commitImport, downloadTemplate, detectCropColumns } from '../lib/importer.js';
 import { exportEverything, exportFarmers, exportPurchases } from '../lib/exporters.js';
 import { fetchAudit } from '../lib/audit.js';
 
@@ -15,9 +15,9 @@ import { fetchAudit } from '../lib/audit.js';
 export async function renderImportData(root) {
   mount(root, spinner('Loading…'));
 
-  let farmers, purchases, geoCtx, products, grades, paymentMethods, farmSizes;
+  let farmers, purchases, geoCtx, products, grades, paymentMethods, farmSizes, cropsLivestock, villages;
   async function loadData() {
-    [farmers, purchases, geoCtx, products, grades, paymentMethods, farmSizes] = await Promise.all([
+    [farmers, purchases, geoCtx, products, grades, paymentMethods, farmSizes, cropsLivestock, villages] = await Promise.all([
       fetchAllFarmers(),
       fetchAllPurchases(),
       loadDistrictResolver().catch(() => null),
@@ -25,6 +25,8 @@ export async function renderImportData(root) {
       loadCollection('grades').then((r) => r.entries),
       loadCollection('paymentMethods').then((r) => r.entries),
       loadCollection('farmSizes').then((r) => r.entries),
+      loadCollection('cropsLivestock').then((r) => r.entries),
+      loadCollection('villages').then((r) => r.entries),
     ]);
   }
   try {
@@ -41,9 +43,9 @@ export async function renderImportData(root) {
     el('h3', {}, 'Export'),
     el('p', { class: 'muted' }, 'Download every record as a spreadsheet - for M&E analysis, partner reports or a backup. To export a filtered list, use the Export buttons on the Farmers or Purchases page.'),
     el('div', { class: 'btn-row-inline' }, [
-      button('Everything (Excel, 2 sheets)', 'btn-maroon', () => exportEverything(farmers, purchases, { resolveDistrict: resolveDistrict() })),
-      button('Farmers (Excel)', 'btn-outline', () => exportFarmers(farmers, 'xlsx', { resolveDistrict: resolveDistrict(), label: 'all-farmers' })),
-      button('Farmers (CSV)', 'btn-outline', () => exportFarmers(farmers, 'csv', { resolveDistrict: resolveDistrict(), label: 'all-farmers' })),
+      button('Everything (Excel, 2 sheets)', 'btn-maroon', () => exportEverything(farmers, purchases, { resolveDistrict: resolveDistrict(), cropsLivestock })),
+      button('Farmers (Excel)', 'btn-outline', () => exportFarmers(farmers, 'xlsx', { resolveDistrict: resolveDistrict(), label: 'all-farmers', cropsLivestock })),
+      button('Farmers (CSV)', 'btn-outline', () => exportFarmers(farmers, 'csv', { resolveDistrict: resolveDistrict(), label: 'all-farmers', cropsLivestock })),
       button('Purchases (Excel)', 'btn-outline', () => exportPurchases(purchases, 'xlsx', { resolveDistrict: resolveDistrict(), farmers, label: 'all-purchases' })),
       button('Purchases (CSV)', 'btn-outline', () => exportPurchases(purchases, 'csv', { resolveDistrict: resolveDistrict(), farmers, label: 'all-purchases' })),
     ]),
@@ -91,8 +93,8 @@ export async function renderImportData(root) {
   function templateButtons() {
     return [
       el('span', { class: 'muted' }, '1. Start from the template: '),
-      button('Excel template', 'btn-outline', () => downloadTemplate(state.type, 'xlsx')),
-      button('CSV template', 'btn-outline', () => downloadTemplate(state.type, 'csv')),
+      button('Excel template', 'btn-outline', () => downloadTemplate(state.type, 'xlsx', { cropsLivestock })),
+      button('CSV template', 'btn-outline', () => downloadTemplate(state.type, 'csv', { cropsLivestock })),
     ];
   }
 
@@ -118,6 +120,8 @@ export async function renderImportData(root) {
       grades,
       paymentMethods,
       farmSizes,
+      cropsLivestock,
+      villages,
       resolveDistrict: resolveDistrict(),
       options: { allowUnmatched: state.allowUnmatched },
     };
@@ -149,12 +153,14 @@ export async function renderImportData(root) {
         return el('tr', {}, [el('td', {}, f.header + (f.required ? ' *' : '')), el('td', {}, select)]);
       })
     );
-    const unmapped = headers.filter((h) => !Object.values(state.mapping).includes(h));
+    const cropCols = state.type === 'farmers' ? detectCropColumns(headers, cropsLivestock) : new Map();
+    const unmapped = headers.filter((h) => !Object.values(state.mapping).includes(h) && !cropCols.has(h));
 
     const head = el('div', { class: 'panel' }, [
       el('h3', {}, '3. Check the columns'),
       el('p', { class: 'muted' }, state.file.name + ' · sheet “' + state.sheet.sheetName + '” · ' + formatNumber(state.sheet.rows.length) + ' rows. Columns were matched by their header names - change any that are wrong.'),
       el('details', { open: !!missingRequired.length }, [el('summary', {}, 'Column matching'), mappingTable]),
+      cropCols.size ? el('p', { class: 'muted small' }, 'Crops & livestock columns: ' + [...cropCols.values()].map((i) => i.label).join(', ')) : null,
       unmapped.length ? el('p', { class: 'muted small' }, 'Ignored columns: ' + unmapped.join(', ')) : null,
       state.type === 'purchases'
         ? el('label', { class: 'check' }, [
@@ -245,7 +251,18 @@ export async function renderImportData(root) {
     renderRows();
   }
 
+  let importing = false;
   async function runImport(counts, btn) {
+    if (importing) return; // one import at a time - a double-click must not run it twice
+    importing = true;
+    try {
+      await runImportOnce(counts, btn);
+    } finally {
+      importing = false;
+    }
+  }
+
+  async function runImportOnce(counts, btn) {
     const noun = state.type === 'farmers' ? 'farmer' : 'purchase';
     const ok = await confirmDialog(
       'Import ' + counts.new + ' ' + noun + (counts.new === 1 ? '' : 's') + '?',

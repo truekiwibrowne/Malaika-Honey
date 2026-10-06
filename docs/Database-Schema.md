@@ -39,6 +39,8 @@ One document per registered farmer. Document ID = FRN.
 | `wantsTraining` | boolean | Interest in Malaika training programs |
 | `signatureDate` | string (`YYYY-MM-DD`) | Date the paper/digital agreement was signed |
 | `photoUrl` | string or null | Reserved for future farmer photo on ID card (Firebase Storage URL) |
+| `farmLocation` | map or null | v0.11.0. Where the **farm** is - `{ lat, lng }` (6 decimals), set by the registration question (off by default), the management farmer page, or import. Distinct from `registeredLocation` (where staff were). Personal data - see [[Risk-Register]] R37 |
+| `cropsLivestock` | map | v0.11.0. `{ itemId: amount }` for each item from the `cropsLivestock` list the farmer has - a positive number in the item's unit, or `true` when the amount wasn't given. Absent items aren't kept. `{}` when nothing recorded |
 | `registeredLocation` | map or null | Where the staff member was when they registered this farmer — `{ lat, lng, accuracyM, capturedAt }`. **Nullable and frequently null**: see "Record location" below |
 | `status` | string enum: `active`, `inactive`, `merged` | Defaults to `active`. `inactive` is set from the management app (with `statusReason`, `statusChangedAt`, `statusChangedBy`) — nothing is deleted. `merged` marks a duplicate merged into another record (below) |
 | `mergedInto` | string or absent | Set with `status: 'merged'`: the FRN that now holds this farmer's purchases. The field app redirects a profile view and any new purchase to it. Also `mergedAt`, `mergedBy` |
@@ -139,6 +141,10 @@ The field app never edits a purchase, so every document here comes from the mana
 
 Append-only log of management-app actions that aren't a single farmer/purchase edit (v0.10.0, `admin/js/lib/audit.js`): `{ schemaVersion, action, target, summary, details, by, byEmail, at, atLocal }`. `action` is a dotted verb — `import.farmers`, `import.purchases`, `farmer.merge`, `farmer.deactivate`, `farmer.reactivate`, `farmer.recalculate`, `settings.update`, `staff.role`, `staff.revoke`, `staff.approve`, `staff.reject`. Where the action is a single batch, the entry is written in the same batch, so the change cannot exist without it. Admin-only to read or create; `update`/`delete` rejected. Shown in management Settings → Activity log.
 
+### `dataCheckDismissals/{checkId}`
+
+v0.11.0. A Data check an admin closed without changing data - today only "possible duplicate: these are different people". Id `dup-<frns sorted>`, so if another matching farmer is registered the group's id changes and the check re-opens by itself. `{ kind, frns, reason, note, by, at, atLocal }`. Admin-only; create and delete (re-open), no update. Both actions are written to `adminAudit` (`checks.close`, `checks.reopen`).
+
 ### `devices/{deviceCode}`
 
 Registry of device codes used to mint collision-free FRNs without any server coordination at write time.
@@ -166,6 +172,8 @@ The `devices` collection itself is a best-effort, self-check side record, not lo
 - `products/{id}`, `grades/{id}`, `paymentMethods/{id}`, `farmSizes/{id}` — each `{ label, order, active }`.
 - `districts/{id}` — `{ label, country, order, active }`, plus optional `region` (`Central`/`Eastern`/`Northern`/`Western`), `lat`, `lng` (set in management Settings; override the built-in UBOS 2020 district data used by the Regions map, and needed only for a district that data doesn't recognise). The document id is the district name — the New Farmer form stores the id on the farmer. `country` is a code like `'UG'` (see "Country" below); districts with no `country` field are treated as visible everywhere.
 - `newFarmerFields/{id}` — the New Farmer form's schema (see "New Farmer form schema" below).
+- `cropsLivestock/{id}` (v0.11.0) — `{ label, kind: 'crop'|'livestock', unit, order, active }`. Options for the `cropsLivestock` question; `unit` empty means a plain yes/no item.
+- `villages/{id}` (v0.11.0) — `{ label, district, order, active }`, id = `<labelSlug>_<districtSlug>` (the same name can exist in two districts). Options for the Village question, filtered by the chosen district. Ships empty; farmers store the village **name**, so typed and listed villages group together.
 
 #### New Farmer form schema
 
@@ -175,12 +183,12 @@ Full Name and Phone are **not** part of this collection — they're fixed, alway
 |---|---|---|
 | `section` | string | Groups fields under a heading (`'Personal Information'`, `'Farm Information'`, `'Production Details'`, or any admin-added section name) |
 | `label` | string | Displayed with a trailing ` *` automatically when `required` is true |
-| `type` | string enum: `text`, `tel`, `email`, `date`, `number`, `select`, `choice`, `toggle` | `select`/`choice` render options from either `options` (inline) or `optionsSource`; `toggle` is a fixed Yes/No choice |
+| `type` | string enum: `text`, `tel`, `email`, `date`, `number`, `select`, `choice`, `toggle`, and (built-in only, v0.11.0) `location`, `cropsLivestock` | `select`/`choice` render options from either `options` (inline) or `optionsSource`; `toggle` is a fixed Yes/No choice |
 | `order` | number | Sort key within the whole form (not just within a section) — can be a decimal (e.g. `10.5`) to slot a new field between two existing ones without renumbering everything else |
 | `required` | boolean | Enforced generically at submit time, not per-field-hardcoded |
 | `active` | boolean | `false` soft-removes the field from the form without touching any farmer document that already has data under that field id |
 | `options` | array of `{id, label}` | Inline option list, for a field whose choices aren't reused anywhere else (e.g. Gender) |
-| `optionsSource` | string or absent | Name of another reference collection to pull options from instead (`'districts'`, `'farmSizes'`) — used when the same option list is also relevant elsewhere |
+| `optionsSource` | string or absent | Name of another reference collection to pull options from instead (`'districts'`, `'farmSizes'`, and from v0.11.0 `'villages'` - filtered by the district answer, with typing as the fallback when none are listed) — used when the same option list is also relevant elsewhere |
 | `placeholder` | string or absent | Shown in the empty input/select |
 
 An option literally valued `"Other"` on any `select`/`choice` field automatically reveals a secondary free-text input at render time, generalizing what used to be District-only special-casing (see `newFarmer.js` `renderField`/`resolveOtherValues`).

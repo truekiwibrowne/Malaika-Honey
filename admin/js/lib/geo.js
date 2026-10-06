@@ -22,11 +22,19 @@ const ALIASES = {
   'fort portal': 'kabarole', // a city inside Kabarole, listed as a district in the field app
   'madi-okollo': 'madi okollo',
   madiokollo: 'madi okollo',
-  terego: 'arua', // carved out of Arua after the 2020 boundaries
   'kampala capital city': 'kampala',
   kcca: 'kampala',
   luweero: 'luwero',
 };
+
+// Districts created after the 2020 boundaries, so not in the outline file.
+// Positioned at the centre of the county they were formed from
+// (geoBoundaries 2006 counties); region per the Uganda Local Government
+// listing. They get their own pin rather than being folded into the old
+// parent district - Terego farmers must not be counted as Arua.
+const EXTRA_DISTRICTS = [
+  { name: 'Terego', region: 'Northern', lat: 3.203, lng: 31.164 },
+];
 
 export function normaliseDistrict(name) {
   const key = String(name || '')
@@ -63,6 +71,9 @@ export function makeDistrictResolver(geo, overrides = []) {
   for (const f of geo.features) {
     const p = f.properties;
     index.set(normaliseDistrict(p.name), { name: p.name, region: p.region, lat: p.lat, lng: p.lng });
+  }
+  for (const d of EXTRA_DISTRICTS) {
+    if (!index.has(normaliseDistrict(d.name))) index.set(normaliseDistrict(d.name), { ...d });
   }
   for (const d of overrides) {
     const label = d.label || d.name || d.id;

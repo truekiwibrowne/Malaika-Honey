@@ -62,10 +62,81 @@ addRoute('/settings', async () => {
 });
 addRoute('/login', () => renderLogin(root), { public: true });
 
+// ------------------------------------------------------------ sidebar width
+// Remembered per browser. Dragging the sidebar's edge resizes it;
+// double-clicking the edge puts it back to the default.
+const NAV_DEFAULT = 232;
+const NAV_MIN = 180;
+const NAV_MAX = 420;
+function setNavWidth(px, save = true) {
+  const w = Math.round(Math.min(NAV_MAX, Math.max(NAV_MIN, px)));
+  document.documentElement.style.setProperty('--nav-width', w + 'px');
+  if (save) {
+    try {
+      localStorage.setItem('mh-admin-nav-width', String(w));
+    } catch {
+      /* private mode - width just isn't remembered */
+    }
+  }
+}
+try {
+  const saved = Number(localStorage.getItem('mh-admin-nav-width'));
+  if (saved) setNavWidth(saved, false);
+} catch {
+  /* ignore */
+}
+
+function navResizer() {
+  const handle = el('div', { class: 'nav-resizer', role: 'separator', 'aria-orientation': 'vertical', 'aria-label': 'Resize menu', tabindex: '0', title: 'Drag to resize · double-click to reset' });
+  handle.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    document.body.classList.add('resizing');
+    const move = (ev) => setNavWidth(ev.clientX);
+    const up = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', up);
+      document.body.classList.remove('resizing');
+      window.dispatchEvent(new Event('resize')); // let maps/charts re-measure
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up);
+  });
+  handle.addEventListener('dblclick', () => {
+    setNavWidth(NAV_DEFAULT);
+    window.dispatchEvent(new Event('resize'));
+  });
+  handle.addEventListener('keydown', (e) => {
+    const current = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--nav-width'), 10) || NAV_DEFAULT;
+    if (e.key === 'ArrowLeft') setNavWidth(current - 16);
+    if (e.key === 'ArrowRight') setNavWidth(current + 16);
+  });
+  return handle;
+}
+
+// Open Data checks issues, shown as a badge on the menu item. The checks
+// module (and the data layer behind it) loads only after sign-in.
+let checksCount = 0;
+const checksModule = () => import('./lib/checks.js');
+function updateChecksBadge(n) {
+  checksCount = n;
+  const badge = document.getElementById('checks-badge');
+  if (badge) {
+    badge.textContent = n > 99 ? '99+' : String(n);
+    badge.hidden = !n;
+    badge.title = n + ' data check' + (n === 1 ? '' : 's') + ' to review';
+  }
+}
+let badgeHooked = false;
+// Any screen that changes something checks look at fires this.
+window.addEventListener('mh:data-changed', () => {
+  if (authState.isAdmin) checksModule().then((m) => m.refreshChecksBadge());
+});
+
 function renderNav() {
   const path = (location.hash.slice(1) || '/dashboard').split('?')[0].split('/')[1];
-  const link = (href, label, key) =>
-    el('a', { href, class: 'nav-link' + (path === key ? ' active' : '') }, label);
+  const link = (href, label, key, extra = null) =>
+    el('a', { href, class: 'nav-link' + (path === key ? ' active' : '') }, [label, extra]);
   nav.replaceChildren(
     el('div', { class: 'nav-brand' }, [
       el('div', { class: 'nav-plate' }, [el('img', { src: 'assets/logo/logo-lockup.png', alt: 'Malaika Honey' })]),
@@ -78,13 +149,14 @@ function renderNav() {
       link('#/purchases', 'Purchases', 'purchases'),
       el('div', { class: 'nav-sep' }),
       link('#/import', 'Import & Export', 'import'),
-      link('#/checks', 'Data checks', 'checks'),
+      link('#/checks', 'Data checks', 'checks', el('span', { id: 'checks-badge', class: 'nav-badge', hidden: !checksCount }, checksCount > 99 ? '99+' : String(checksCount))),
       link('#/settings', 'Settings', 'settings'),
     ]),
     el('div', { class: 'nav-user' }, [
       el('span', { class: 'muted' }, cachedProfile()?.email || ''),
       el('button', { class: 'link-btn', onClick: () => signOut() }, 'Sign out'),
-    ])
+    ]),
+    navResizer()
   );
 }
 
@@ -132,6 +204,13 @@ onAuthChange(async (user) => {
   authState = { ready: true, user, isAdmin: true };
   shell.classList.remove('signed-out');
   renderNav();
+  checksModule().then((m) => {
+    if (!badgeHooked) {
+      m.onChecksCount(updateChecksBadge);
+      badgeHooked = true;
+    }
+    m.refreshChecksBadge();
+  });
   const target = pendingHash || (!location.hash || location.hash === '#/login' ? '#/dashboard' : location.hash);
   pendingHash = null;
   navigate(target);

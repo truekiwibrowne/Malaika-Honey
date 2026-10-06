@@ -7,7 +7,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { db } from './firebase.js';
 import { currentAdminName } from './auth.js';
-import { auditInBatch } from './audit.js';
+import { auditInBatch, notifyDataChanged } from './audit.js';
 import {
   PRODUCTS_FALLBACK,
   GRADES_FALLBACK,
@@ -16,6 +16,8 @@ import {
   FARM_SIZES_FALLBACK,
   DISTRICTS_FALLBACK,
   NEW_FARMER_FIELDS_FALLBACK,
+  CROPS_LIVESTOCK_FALLBACK,
+  VILLAGES_FALLBACK,
 } from '../shared/referenceDefaults.js';
 
 /**
@@ -67,15 +69,32 @@ export const COLLECTIONS = {
     idFromLabel: (label) => label.trim(),
     extra: ['region', 'lat', 'lng', 'country'],
   },
+  villages: {
+    title: 'Villages',
+    help: 'The registration form’s Village dropdown. Each village belongs to a district, and staff only see the villages of the district they picked. A district with no villages listed lets staff type the village instead.',
+    defaults: VILLAGES_FALLBACK,
+    columns: [{ key: 'district', label: 'District', type: 'district' }],
+    // Same name can exist in two districts, so the id includes the district.
+    idFromLabel: (label, entry) => slugFromLabel(label) + '_' + slugFromLabel(entry.district || 'none'),
+  },
   fieldOffices: {
     title: 'Field offices',
     help: 'Offices on the field app’s sign-in screen. Rename, reorder or hide an office here. A new office also needs its sign-in code, so it is added from the field app (Home -> Add Office).',
     defaults: FIELD_OFFICES_FALLBACK,
     noCreate: true,
   },
+  cropsLivestock: {
+    title: 'Crops & livestock',
+    help: 'What the registration form’s “Crops and livestock” question offers. Staff tick what the farmer has and can enter how much, in the unit given (leave the unit empty for a plain yes/no). Each item becomes a column in exports and imports.',
+    defaults: CROPS_LIVESTOCK_FALLBACK,
+    columns: [
+      { key: 'kind', label: 'Type', type: 'select', options: [{ value: 'crop', label: 'Crop' }, { value: 'livestock', label: 'Livestock' }], default: 'crop' },
+      { key: 'unit', label: 'Counted in', type: 'text', placeholder: 'e.g. acres, animals' },
+    ],
+  },
   newFarmerFields: {
-    title: 'New Farmer form',
-    help: 'The questions on the field app’s New Farmer form, in order. Full name and phone are always asked and aren’t listed here.',
+    title: 'Registration form',
+    help: 'The questions on the field app’s New Farmer (and Edit Farmer) form, in order. Full name and phone are always asked and aren’t listed here.',
     defaults: NEW_FARMER_FIELDS_FALLBACK,
     extra: ['section', 'type', 'required', 'placeholder', 'options', 'optionsSource'],
   },
@@ -126,4 +145,5 @@ export async function saveEntries(name, { seeded, entries }, changed, summary) {
     details: { ids: changed.map((e) => e.id), seededDefaults: !seeded },
   });
   await batch.commit();
+  notifyDataChanged();
 }

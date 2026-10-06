@@ -4,6 +4,7 @@ import { printFarmerRegister } from '../lib/print.js';
 import { exportFarmers } from '../lib/exporters.js';
 import { REGIONS, UNKNOWN_REGION } from '../lib/geo.js';
 import { registeredIso } from '../lib/stats.js';
+import { loadCollection } from '../lib/refdata.js';
 
 const STATUS_LABELS = { active: 'Active', inactive: 'Inactive', merged: 'Merged' };
 
@@ -123,7 +124,7 @@ export async function renderFarmers(root) {
     el('div', { class: 'page-head' }, [
       el('h1', {}, 'Farmers'),
       el('div', { class: 'head-actions' }, [
-        ...exportButtons((format) => exportFarmers(filtered(), format, { resolveDistrict })),
+        ...exportButtons(async (format) => exportFarmers(filtered(), format, { resolveDistrict, cropsLivestock: (await loadCollection('cropsLivestock')).entries })),
         el('button', { class: 'btn btn-outline btn-sm', onClick: () => printFarmerRegister(filtered(), filterSummary()) }, 'Print register'),
       ]),
     ]),

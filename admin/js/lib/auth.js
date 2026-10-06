@@ -90,3 +90,34 @@ export function friendlyAuthError(err) {
   if (code === 'auth/user-disabled') return 'This account has been disabled.';
   return 'Could not sign in. Please try again.';
 }
+
+// ------------------------------------------------------ creating accounts
+
+const isLocalhost = ['localhost', '127.0.0.1', ''].includes(location.hostname);
+
+/**
+ * Creates a Firebase Auth email/password account for SOMEONE ELSE, via the
+ * Auth REST API rather than the SDK's createUserWithEmailAndPassword - the
+ * SDK call would sign the admin out and in as the new account. Same
+ * approach as the field app's createOfficeAccount (public/js/lib/auth.js).
+ * Resolves { created: true }, or { exists: true } when the email already
+ * has an account (the caller can still grant it access).
+ */
+export async function createAuthAccount(email, password) {
+  const { firebaseConfig } = await import('../shared/firebase.config.js');
+  const base = isLocalhost ? 'http://localhost:9099/identitytoolkit.googleapis.com/v1' : 'https://identitytoolkit.googleapis.com/v1';
+  const key = isLocalhost ? 'fake-api-key' : firebaseConfig.apiKey;
+  const res = await fetch(base + '/accounts:signUp?key=' + key, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, returnSecureToken: false }),
+  });
+  if (res.ok) return { created: true };
+  const data = await res.json().catch(() => ({}));
+  const msg = (data.error && data.error.message) || '';
+  if (msg.startsWith('EMAIL_EXISTS')) return { exists: true };
+  if (msg.startsWith('WEAK_PASSWORD')) throw new Error('The password/code is too short - Firebase needs at least 6 characters for a personal account.');
+  if (msg.startsWith('INVALID_EMAIL')) throw new Error('That email address isn’t valid.');
+  if (msg.startsWith('OPERATION_NOT_ALLOWED')) throw new Error('Email/password sign-in is turned off for this Firebase project.');
+  throw new Error('Could not create the account (' + (msg || res.status) + ').');
+}

@@ -861,3 +861,16 @@ html, body {
 .location-hint.no-fix::before {
   content: '○ ';
 }
+
+/* v0.11.0 - farm location and crops & livestock questions */
+.location-field { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; border: 1.5px solid var(--color-border); border-radius: var(--radius-md); padding: 10px 12px; background: #fff; }
+.location-value { font-variant-numeric: tabular-nums; font-weight: 600; }
+.location-value.muted { color: var(--color-text-muted); font-weight: 400; }
+.location-actions { display: flex; gap: 8px; }
+.location-actions .btn { width: auto; margin: 0; }
+.crops-field { display: flex; flex-direction: column; gap: 12px; }
+.crops-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); margin-bottom: 6px; }
+.crops-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.crops-row .choice-chip { flex: 1; text-align: left; }
+.crops-qty { width: 110px; flex: none; }
+.crops-row .choice-chip { max-width: none; }

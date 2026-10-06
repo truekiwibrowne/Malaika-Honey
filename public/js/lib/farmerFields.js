@@ -24,7 +24,36 @@ const KNOWN_FIELD_IDS = [
   'dateOfBirth', 'gender', 'email', 'village', 'district', 'farmSize',
   'hivesTraditional', 'hivesKtb', 'hivesModern', 'otherCropsOrLivestock',
   'avgHarvestKgPerYear', 'usesChemicals', 'wantsTraining',
+  'farmLocation', 'cropsLivestock',
 ];
+
+/**
+ * Farm GPS as stored: { lat, lng } rounded to ~10 cm, or null. Accepts the
+ * picker's object or anything with numeric lat/lng; rejects junk rather
+ * than storing half a coordinate.
+ */
+function normaliseLocation(value) {
+  if (!value || typeof value !== 'object') return null;
+  const lat = Number(value.lat);
+  const lng = Number(value.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6 };
+}
+
+/**
+ * Crops & livestock as stored: { itemId: quantity } where quantity is a
+ * positive number, or true for "has it, amount not given". Unticked items
+ * are simply absent, so the map only lists what the farmer has.
+ */
+function normaliseCrops(value) {
+  const out = {};
+  if (!value || typeof value !== 'object') return out;
+  for (const [id, v] of Object.entries(value)) {
+    if (v === true || v === 'true') out[id] = true;
+    else if (Number(v) > 0) out[id] = Number(v);
+  }
+  return out;
+}
 
 /**
  * Human-readable names for the editable farmer fields, used only to make
@@ -49,6 +78,8 @@ export const FIELD_LABELS = {
   avgHarvestKgPerYear: 'Average Honey Harvest',
   usesChemicals: 'Uses chemicals/pesticides?',
   wantsTraining: 'Interested in training?',
+  'farmLocation.lat': 'Farm latitude',
+  'farmLocation.lng': 'Farm longitude',
 };
 
 /**
@@ -84,6 +115,8 @@ export function buildEditableFarmerFields({ fullName, phone, fieldValues = {} })
     avgHarvestKgPerYear: Number(fieldValues.avgHarvestKgPerYear) || 0,
     usesChemicals: fieldValues.usesChemicals === 'yes',
     wantsTraining: fieldValues.wantsTraining === 'yes',
+    farmLocation: normaliseLocation(fieldValues.farmLocation),
+    cropsLivestock: normaliseCrops(fieldValues.cropsLivestock),
     customFields,
   };
 }
@@ -111,6 +144,8 @@ export function farmerToFieldValues(farmer) {
     avgHarvestKgPerYear: farmer.avgHarvestKgPerYear ?? '',
     usesChemicals: farmer.usesChemicals ? 'yes' : 'no',
     wantsTraining: farmer.wantsTraining ? 'yes' : 'no',
+    farmLocation: farmer.farmLocation || null,
+    cropsLivestock: farmer.cropsLivestock || {},
     ...(farmer.customFields || {}),
   };
 }
@@ -144,7 +179,8 @@ export function diffFarmerFields(before, after) {
     // Compared as strings so 0 vs '0' or null vs '' don't register as
     // edits - staff retyping the same value must not create audit noise.
     if (String(from ?? '') === String(to ?? '')) continue;
-    changes.push({ field: key, label: FIELD_LABELS[key] || key, from, to });
+    const label = FIELD_LABELS[key] || (key.startsWith('cropsLivestock.') ? 'Crops & livestock: ' + key.slice(15) : key);
+    changes.push({ field: key, label, from, to });
   }
 
   return changes.sort((a, b) => a.field.localeCompare(b.field));

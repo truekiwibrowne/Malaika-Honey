@@ -1,5 +1,6 @@
 import { downloadSheets, stamp } from './sheet.js';
 import { registeredIso } from './stats.js';
+import { cropHeader } from './importer.js';
 
 /**
  * Column layouts for spreadsheet exports (Backlog 3.3). Kept in one place
@@ -27,7 +28,18 @@ function customColumns(farmers) {
   } }));
 }
 
-export function farmerColumns(resolveDistrict, farmers = []) {
+/** One column per crop/livestock item: the amount, or "yes" when no amount was given. */
+function cropColumns(items, farmers) {
+  const used = new Set(farmers.flatMap((f) => Object.keys(f.cropsLivestock || {})));
+  return items
+    .filter((c) => c.active !== false || used.has(c.id))
+    .map((c) => ({ header: cropHeader(c), type: 'auto', value: (f) => {
+      const v = (f.cropsLivestock || {})[c.id];
+      return v === true ? 'yes' : v ?? '';
+    } }));
+}
+
+export function farmerColumns(resolveDistrict, farmers = [], cropsLivestock = []) {
   return [
     { header: 'FRN', value: (f) => f.frn, width: 14 },
     { header: 'Full name', value: (f) => f.fullName, width: 26 },
@@ -53,9 +65,12 @@ export function farmerColumns(resolveDistrict, farmers = []) {
     { header: 'Lifetime kg', value: (f) => f.lifetimeStats?.totalKg ?? 0, type: 'number' },
     { header: 'Lifetime paid (UGX)', value: (f) => f.lifetimeStats?.totalPaidUgx ?? 0, type: 'number', width: 18 },
     { header: 'Last delivery', value: (f) => f.lifetimeStats?.lastPurchaseAt || '', width: 12 },
+    { header: 'Farm latitude', value: (f) => gps(f.farmLocation, 'lat'), type: 'number' },
+    { header: 'Farm longitude', value: (f) => gps(f.farmLocation, 'lng'), type: 'number' },
     { header: 'Registered latitude', value: (f) => gps(f.registeredLocation, 'lat'), type: 'number' },
     { header: 'Registered longitude', value: (f) => gps(f.registeredLocation, 'lng'), type: 'number' },
     { header: 'Import batch', value: (f) => f.importId || '' },
+    ...cropColumns(cropsLivestock, farmers),
     ...customColumns(farmers),
   ];
 }
@@ -86,9 +101,9 @@ export function purchaseColumns(resolveDistrict, farmersByFrn) {
   ];
 }
 
-export function exportFarmers(farmers, format, { resolveDistrict, label = 'farmers' } = {}) {
+export function exportFarmers(farmers, format, { resolveDistrict, label = 'farmers', cropsLivestock = [] } = {}) {
   return downloadSheets(
-    [{ name: 'Farmers', columns: farmerColumns(resolveDistrict, farmers), rows: farmers }],
+    [{ name: 'Farmers', columns: farmerColumns(resolveDistrict, farmers, cropsLivestock), rows: farmers }],
     'malaika-' + label + '-' + stamp(),
     format
   );
@@ -104,11 +119,11 @@ export function exportPurchases(purchases, format, { resolveDistrict, farmers = 
 }
 
 /** Both tables in one workbook, for M&E analysis and partner reporting. */
-export function exportEverything(farmers, purchases, { resolveDistrict } = {}) {
+export function exportEverything(farmers, purchases, { resolveDistrict, cropsLivestock = [] } = {}) {
   const byFrn = new Map(farmers.map((f) => [f.frn, f]));
   return downloadSheets(
     [
-      { name: 'Farmers', columns: farmerColumns(resolveDistrict, farmers), rows: farmers },
+      { name: 'Farmers', columns: farmerColumns(resolveDistrict, farmers, cropsLivestock), rows: farmers },
       { name: 'Purchases', columns: purchaseColumns(resolveDistrict, byFrn), rows: purchases },
     ],
     'malaika-full-export-' + stamp(),

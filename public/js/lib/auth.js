@@ -12,6 +12,7 @@ import {
 import { doc, getDoc, getDocFromCache, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { auth, db } from './firebase.js';
 import { firebaseConfig } from '../config/firebase.config.js';
+import { OFFICE_EMAIL_DOMAIN, officeIdToEmail, officeCodeToPassword } from './officeAccounts.js';
 
 const googleProvider = new GoogleAuthProvider();
 // Always show the account chooser, even if the browser only knows one
@@ -23,7 +24,6 @@ const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 const PHONE_EMAIL_DOMAIN = 'staff.malaikahoney.local';
-const OFFICE_EMAIL_DOMAIN = 'office.malaikahoney.local';
 
 /**
  * Turns a staff-entered phone number into the synthetic email Firebase
@@ -37,34 +37,10 @@ export function phoneToEmail(phone) {
   return digits + '@' + PHONE_EMAIL_DOMAIN;
 }
 
-/**
- * Same idea as phoneToEmail, but for the primary sign-in method: one
- * shared account per field office, provisioned by an admin directly in
- * Firebase Console rather than self-service (see docs/Config-Management.md
- * "Field office provisioning") - officeId is the fieldOffices document id
- * chosen from the Login screen's dropdown (see referenceData.js
- * getFieldOffices).
- */
-export function officeIdToEmail(officeId) {
-  return officeId + '@' + OFFICE_EMAIL_DOMAIN;
-}
-
-// Firebase Auth requires a password of at least 6 characters, but office
-// codes are meant to be short (e.g. 4 digits) so they're easy for staff
-// to remember and type. Appending this fixed, non-secret suffix pads the
-// real Firebase password to a safe length without staff ever needing to
-// know it exists - they always just type the short code shown to them.
-// This does NOT add real security (the suffix is constant and effectively
-// public, documented here in the repo) - the entropy is still only
-// whatever the office code itself provides; see docs/Risk-Register.md.
-// Must stay in sync with whatever password was actually set on each
-// office's Firebase Auth account (see docs/Config-Management.md "Field
-// office provisioning").
-const OFFICE_CODE_PAD = '-mhfrm';
-
-function officeCodeToPassword(code) {
-  return code + OFFICE_CODE_PAD;
-}
+// Office identity rules (email domain, code padding) live in
+// officeAccounts.js so the management app derives exactly the same
+// sign-in for an office it creates. Re-exported for existing importers.
+export { officeIdToEmail };
 
 const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '';
 const AUTH_REST_BASE = isLocalhost

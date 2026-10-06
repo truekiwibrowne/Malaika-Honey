@@ -9,7 +9,7 @@
   # at deploy time so the two apps can never disagree about how a farmer's
   # fields map or what counts as a change (that drift would corrupt the
   # farmerEdits audit trail). See docs/System-Architecture.md.
-  command = "mkdir -p admin/js/shared && cp public/js/lib/farmerFields.js public/js/lib/referenceDefaults.js public/js/config/firebase.config.js admin/js/shared/"
+  command = "mkdir -p admin/js/shared && cp public/js/lib/farmerFields.js public/js/lib/referenceDefaults.js public/js/lib/mapPicker.js public/js/lib/officeAccounts.js public/js/config/firebase.config.js admin/js/shared/"
 
 # Hash-routed like the field app, so this is a safety net rather than a
 # necessity — a deep link pasted without the hash still lands on the app.

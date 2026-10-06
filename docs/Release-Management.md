@@ -49,12 +49,16 @@ Note: this does **not** deploy `functions/` (push notifications — see [[Push-N
 `netlify.toml` publishes `admin/` and runs one copy command first (not a bundler):
 
 ```bash
-mkdir -p admin/js/shared && cp public/js/lib/farmerFields.js public/js/lib/referenceDefaults.js public/js/config/firebase.config.js admin/js/shared/
+mkdir -p admin/js/shared && cp public/js/lib/farmerFields.js public/js/lib/referenceDefaults.js public/js/lib/mapPicker.js public/js/lib/officeAccounts.js public/js/config/firebase.config.js admin/js/shared/
 ```
 
 That keeps `public/` as the single source of truth for the modules both apps share; `admin/js/shared/` is gitignored so a stale committed copy can't diverge. Run `.tools/sync-admin-shared.sh` before serving `admin/` locally.
 
 The two deploys are fully independent — `firebase deploy --only hosting` publishes `public/` and never touches `admin/`, and a Netlify deploy never touches the field app. Only `firestore.rules` is shared, so a rules change must be deployed once (`firebase deploy --only firestore:rules`) regardless of which app prompted it.
+
+**v0.11.0 needs all three deploys**: rules (new `villages`, `cropsLivestock`, `dataCheckDismissals`), the management app, and - unlike v0.10.0 - the **field app** too (`firebase deploy --only hosting`), which carries the village dropdown, crops & livestock and farm-location questions.
+
+**Which Netlify site:** the management app staff use is `malaikahoney-management.netlify.app`. It is not linked to GitHub, so it needs a manual deploy (drag the synced `admin/` folder onto its Deploys page) unless it is linked under Site configuration → Build & deploy → Link repository. A second, GitHub-linked site `malaika-honey-management.netlify.app` exists and updates on every push.
 
 **v0.10.0 needs a rules deploy.** Settings, Staff access, the Activity log and every audit entry depend on the new `firestore.rules`; until they are deployed, those screens fail with "permission denied" (the app says so) while everything else works. Deploy rules **before or together with** the Netlify deploy:
 

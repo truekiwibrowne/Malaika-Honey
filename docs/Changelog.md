@@ -4,6 +4,38 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-06
+
+Farm GPS, crops & livestock, villages as a managed list, staff set-up from the management app, and a management app that uses the whole screen.
+
+### Added — both apps
+- **Farm location (GPS)** - where the *farm* is, separate from the automatic "where staff registered this farmer" location. A new registration question (`type: 'location'`, **off by default** - turn it on in Settings → Registration form), plus a **Farm location** panel with a small map on every farmer's page in the management app. Set it with the shared **map picker** (`public/js/lib/mapPicker.js`, used by both apps): "use my current location" (works offline), tap/drag on a map, search a place (OpenStreetMap Nominatim, Uganda only), or type coordinates. Included in imports and exports as *Farm latitude* / *Farm longitude*; the Regions GPS view now plots farms first and staff registration points only where no farm location exists.
+- **Crops & livestock** - a structured checklist (new `cropsLivestock` list, Settings → Crops & livestock, starting with 10 crops and 5 kinds of livestock) with an optional amount per item in its unit (acres, animals, birds). A new registration question (on by default), an editable panel on the management farmer page, one column per item in exports/imports/templates, and a "Crops & livestock kept" table on Regions. The free-text "Other crops or livestock" box stays for anything not listed.
+- **Villages as a managed list** - new `villages` list (Settings → Villages), each tied to a district. On the phone the Village question is a dropdown narrowed to the district picked (with "Other (not listed)"); a district with no villages listed falls back to typing so registration is never blocked. **"Add villages already used by farmers"** builds the list from existing records (merging "OCEA"/"Ocea", skipping "N/A"). Settings → Registration form can switch Village and District between "dropdown from the list" and "typed". The management farmer page uses dropdowns for district, village and farm size.
+- **Districts**: Terego, Madi-Okollo, Buhweju, Bunyangabu, Karenga, Kassanda, Kazo and Rwampara added to the default list. Terego (created after the 2020 boundaries) gets its own map position instead of being counted under Arua.
+
+### Added — management app
+- **Uses the full screen width**, and the **sidebar is resizable** - drag its edge (double-click to reset; remembered per browser).
+- **Data checks badge** on the sidebar: the number of open issues. Possible duplicates can now be **closed as "checked - not duplicates"** (with a note; re-openable), stored in new admin-only `dataCheckDismissals`. New check: **districts left on "auto" region that can't be placed**. Missing receipt numbers are shown for information but don't count.
+- **Settings → Staff access → Add access**: create a **field office** (name + code - the same account the field app's Add Office creates, so it signs in on phones straight away) or a **management user** (email + temporary password, admin). Uses the Auth REST API so the admin stays signed in.
+- **Settings → Districts**: region shows what "auto" resolves to (or "Auto - not found", flagged), a **Map** button per district (map picker with search), and a filter for districts needing attention. **Data checks → "Add as district"** jumps here with the name filled in.
+- **Settings → Registration form**: an **Add a question** panel up front (wording, answer type in plain words, section, options, required), and a prompt to add built-in questions a saved form doesn't have yet (so Farm location / Crops & livestock reach a form customised before v0.11). Answers to added questions are now shown and editable on the farmer page.
+
+### Changed
+- `firestore.rules`: new `cropsLivestock` and `villages` (staff read, admin create/update, never delete) and `dataCheckDismissals` (admin only; create and delete, no update). **Must be deployed.**
+- Office sign-in identity rules moved to a shared, dependency-free `public/js/lib/officeAccounts.js` (used by the field app's sign-in and Add Office, and by the management app) so an office created by either app works in both. `mapPicker.js` and `officeAccounts.js` are copied into the management app at deploy time like `farmerFields.js`.
+- The field app's service-worker cache is bumped to v0.11.0 and precaches the new modules.
+
+### Fixed
+- **Import could add the same farmer twice** if a stale preview was committed (a second click, or the farmer registered meanwhile): a farmer without an FRN always gets a new one, so the commit-time FRN check couldn't see the clash. Phone numbers are now re-checked against live data immediately before writing, and only one import can run at a time.
+- Charts spilled out of their cards when the window - or now the sidebar - made the column narrower.
+- Edit history shows "yes"/"no" instead of "true"/"false".
+
+### Verified
+Against the emulators with the new rules: 22 rule checks (incl. the new collections); full-width layout, sidebar drag/reset/persist with charts reflowing; badge counts matching Data checks and dropping when a duplicate is closed; villages built from farmer records and saved; an unknown district flagged, fixed via map search + region, flag cleared; a field office created in the management app **signing in on the phone app** and registering a farmer (district → narrowed village list, farm location by tapping the map, crops with amount, a custom question) with every value confirmed in the database; Edit Farmer on the phone prefilling all of it and saving no spurious changes; management farmer page location/crops/district-village edits with audit entries; import with farm GPS and crop columns (swapped coordinates and unlisted village warned, half-coordinates and bad amounts rejected) and an export read back.
+
+**Not verified from here:** the production deploys, and the map picker's "use my current location" on a real phone outdoors.
+
 ## [0.10.0] - 2026-10-05
 
 The management app grows from a read-and-correct tool into the place the office actually runs the programme from: where farmers are, how buying is trending, getting data in and out, and the settings that used to need the Firebase Console.

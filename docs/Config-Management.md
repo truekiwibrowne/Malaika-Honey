@@ -98,7 +98,7 @@ The **Google** provider needs enabling in Firebase Console → **Authentication*
 
 ## Editing reference data
 
-**Normal way (v0.10.0+): management app → Settings.** Each list has its own tab; changes reach phones the next time they're online. Settings handles the first-save trap described below automatically (it writes the whole default list with your change), and entries are hidden rather than deleted. Field offices can be renamed, reordered and hidden there; a *new* office is still added from the field app (Home → Add Office) because it also creates the office's sign-in account. Every change is recorded in Settings → Activity log.
+**Normal way (v0.10.0+): management app → Settings** (v0.11.0 adds Villages, Crops & livestock, a map picker for district positions, and adding new offices from Staff access). Each list has its own tab; changes reach phones the next time they're online. Settings handles the first-save trap described below automatically (it writes the whole default list with your change), and entries are hidden rather than deleted. Field offices can be renamed, reordered and hidden there; a *new* office is still added from the field app (Home → Add Office) because it also creates the office's sign-in account. Every change is recorded in Settings → Activity log.
 
 The Console steps below still work and are the fallback.
 
@@ -133,6 +133,6 @@ Management accounts are **individual** (a real email address per person), unlike
 1. Firebase Console → Authentication → Users → **Add user**, with the person's real email address and a password.
 2. Firestore → `allowedStaff` → add a document whose **ID is that email address**, with a field `role` = `admin` (string).
 
-Once one admin exists, further admins can be made — and access revoked — from management Settings → Staff access (never on your own account). The Console route:
+Once one admin exists, new management users and new field offices can be **created**, admins made, and access revoked from management Settings → Staff access (never on your own account). A new management user gets a temporary password to pass on privately; password resets and changing an office's code are still done in the Console (Authentication → the user → Reset password / edit). The Console route:
 
 To revoke management access, remove the `role` field (leaves them as ordinary approved staff) or delete the `allowedStaff` document (removes all access). Also disable the Auth user if the person has left — that takes effect immediately server-side, whereas an `allowedStaff` change can lag on a device with a cached authorization (see [[Risk-Register]] R17).

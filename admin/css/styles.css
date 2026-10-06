@@ -50,6 +50,14 @@ html, body {
   top: 0;
   height: 100vh;
 }
+/* Drag handle on the sidebar's right edge (see app.js navResizer). */
+.nav-resizer { position: absolute; top: 0; right: -4px; width: 8px; height: 100%; cursor: col-resize; z-index: 10; }
+.nav-resizer::after { content: ''; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: transparent; transition: background 0.15s; }
+.nav-resizer:hover::after, .nav-resizer:focus-visible::after, body.resizing .nav-resizer::after { background: rgba(255,255,255,0.55); }
+body.resizing { cursor: col-resize; user-select: none; }
+.nav-link { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.nav-badge { background: #f5b301; color: #2b2020; border-radius: 999px; font-size: 12px; font-weight: 800; min-width: 22px; height: 22px; padding: 0 7px; display: inline-flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; }
+.nav-link.active .nav-badge { background: var(--brand-maroon); color: #fff; }
 .nav-brand { display: flex; flex-direction: column; gap: 8px; }
 /* Both logo files are fully opaque (no transparency), so the lockup can't
    sit directly on the maroon sidebar - it gets a white plate instead, which
@@ -73,7 +81,7 @@ html, body {
 .nav-user .link-btn { color: #fff; text-align: left; }
 
 /* ----------------------------------------------------------------- view */
-.view { flex: 1; min-width: 0; padding: 28px 32px 60px; max-width: 1280px; }
+.view { flex: 1; min-width: 0; padding: 28px 32px 60px; }
 #shell.signed-out .view { max-width: none; padding: 0; }
 
 .page-head {
@@ -286,7 +294,11 @@ tr.row-error td { background: #fdf3f3; }
 .chart-head .muted { margin: 2px 0 0; font-size: 12px; }
 .chart-controls { display: flex; gap: 12px; align-items: center; flex: none; }
 .chart-toggle { font-size: 13px; }
-.chart-plot { position: relative; }
+/* min-width/overflow let the plot shrink when the window or the resizable
+   sidebar narrows the column - without them the canvas's last drawn width
+   holds the grid track open and the chart spills out of its card. */
+.chart-plot { position: relative; min-width: 0; overflow: hidden; }
+.chart-plot canvas { max-width: 100%; }
 .chart-table { max-height: 300px; overflow: auto; }
 .chart-empty { padding: 40px 0; text-align: center; color: var(--color-text-muted); font-size: 14px; }
 .two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(560px, 1fr)); gap: 0 20px; }
@@ -369,6 +381,37 @@ textarea { resize: vertical; }
 @media (max-width: 760px) {
   .chart-grid, .two-col, .merge-cards { grid-template-columns: 1fr; }
   .map { height: 440px; }
+}
+
+/* ===================================================== v0.11.0 additions */
+.map-dot-muted { background: #9a8f8f; }
+.pos-cell { display: flex; gap: 8px; align-items: center; white-space: nowrap; }
+.w-unit { width: 130px; }
+.check-icon.info { background: #8a7f7f; }
+.dupe-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 4px; }
+.closed-checks { margin-top: 14px; }
+.closed-checks summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--color-text-muted); margin-bottom: 8px; }
+.add-question h3 { margin-bottom: 4px; }
+.add-access { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+.add-access-col h4 { margin: 4px 0 2px; font-size: 14px; }
+.add-access-col .field { margin-top: 8px; }
+.add-access-col .check { margin-top: 10px; }
+.detail-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 14px; margin-top: 16px; }
+.detail-panels .panel { margin: 0; }
+.farm-location { display: flex; flex-direction: column; gap: 12px; }
+.farm-location p { margin: 4px 0; font-size: 14px; }
+.farm-location .head-actions { margin-top: 10px; flex-wrap: wrap; }
+.mini-map { height: 220px; border-radius: 10px; background: #eef2f4; z-index: 0; position: relative; }
+.mini-map-empty { display: flex; align-items: center; justify-content: center; color: var(--color-text-muted); font-size: 13px; border: 1px dashed var(--color-border); }
+.crops-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 4px 20px; }
+.crops-grid h4 { margin: 4px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); }
+.crop-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 14px; min-height: 36px; }
+.crop-row > span:first-of-type { flex: 1; }
+.crop-row input[type=number] { min-height: 32px; padding: 4px 8px; width: 76px; }
+.crop-row .muted { min-width: 44px; }
+.village-host select, .village-host input { width: 100%; }
+@media (max-width: 760px) {
+  .crops-grid { grid-template-columns: 1fr; }
 }
 
 /* ---------------------------------------------------------------- print */

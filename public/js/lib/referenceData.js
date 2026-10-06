@@ -9,6 +9,8 @@ import {
   FARM_SIZES_FALLBACK,
   DISTRICTS_FALLBACK,
   NEW_FARMER_FIELDS_FALLBACK,
+  CROPS_LIVESTOCK_FALLBACK,
+  VILLAGES_FALLBACK,
 } from './referenceDefaults.js';
 
 /**
@@ -57,6 +59,8 @@ export const getGrades = () => getOptionList('grades', GRADES_FALLBACK);
 export const getPaymentMethods = () => getOptionList('paymentMethods', PAYMENT_METHODS_FALLBACK);
 export const getFarmSizes = () => getOptionList('farmSizes', FARM_SIZES_FALLBACK);
 export const getNewFarmerFields = () => getOptionList('newFarmerFields', NEW_FARMER_FIELDS_FALLBACK);
+export const getCropsLivestock = () => getOptionList('cropsLivestock', CROPS_LIVESTOCK_FALLBACK);
+export const getVillages = () => getOptionList('villages', VILLAGES_FALLBACK);
 
 export async function getDistricts() {
   const countryCode = getCountryCode();

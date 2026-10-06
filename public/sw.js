@@ -13,7 +13,7 @@
  * (see docs/Release-Management.md) - the old cache is deleted on
  * activate, so a stale shell can never get permanently stuck.
  */
-const CACHE_NAME = 'malaika-shell-v0.10.0';
+const CACHE_NAME = 'malaika-shell-v0.11.0';
 
 const SHELL_URLS = [
   './',
@@ -34,7 +34,9 @@ const SHELL_URLS = [
   'js/lib/firebase.js',
   'js/lib/header.js',
   'js/lib/icons.js',
+  'js/lib/officeAccounts.js',
   'js/lib/location.js',
+  'js/lib/mapPicker.js',
   'js/lib/push.js',
   'js/lib/qrScanner.js',
   'js/lib/referenceData.js',

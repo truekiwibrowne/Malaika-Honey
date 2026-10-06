@@ -166,6 +166,33 @@ service cloud.firestore {
       allow create, update: if isAdmin();
       allow delete: if false;
     }
+    // v0.11.0: options for the New Farmer form's "Crops and livestock"
+    // question - same pattern as the other reference lists.
+    match /cropsLivestock/{itemId} {
+      allow read: if isApprovedStaff();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // v0.11.0: villages for the New Farmer form's village dropdown, each
+    // tied to a district - same pattern as the other reference lists.
+    match /villages/{villageId} {
+      allow read: if isApprovedStaff();
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // v0.11.0: Data checks an admin has looked at and closed without a
+    // data change (e.g. "these two farmers share a name but are different
+    // people"). Deleting one re-opens the check, so delete is allowed -
+    // the close and the re-open are both written to adminAudit.
+    match /dataCheckDismissals/{checkId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasAll(['kind', 'by']);
+      allow delete: if isAdmin();
+      allow update: if false;
+    }
 
     // Append-only log of management actions that aren't a farmer or
     // purchase edit - imports, merges, deactivations, settings and staff

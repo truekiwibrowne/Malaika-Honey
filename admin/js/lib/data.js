@@ -14,8 +14,9 @@ import {
   setDoc,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { db } from './firebase.js';
-import { currentAdminName, currentAdminEmail } from './auth.js';
-import { auditInBatch, writeAudit } from './audit.js';
+import { currentAdminName, currentAdminEmail, createAuthAccount } from './auth.js';
+import { officeSlug, officeIdToEmail, officeCodeToPassword } from '../shared/officeAccounts.js';
+import { auditInBatch, writeAudit, notifyDataChanged } from './audit.js';
 import { loadUgandaGeo, makeDistrictResolver } from './geo.js';
 import { localIso } from './stats.js';
 import { buildEditableFarmerFields, diffFarmerFields, farmerToFieldValues, FIELD_LABELS } from '../shared/farmerFields.js';
@@ -111,6 +112,7 @@ export async function updateFarmerAsAdmin({ frn, fullName, phone, fieldValues, e
   });
 
   await batch.commit();
+  notifyDataChanged();
   return { changed: true, changes };
 }
 
@@ -287,6 +289,7 @@ export async function updatePurchaseAsAdmin({ purchaseId, updates, existing }) {
     }
   }
 
+  notifyDataChanged();
   return { changed: true, changes, statsAdjusted: affectsStats };
 }
 
@@ -367,6 +370,7 @@ export async function setFarmerStatus(farmer, status, reason = '') {
     details: { reason: reason || null },
   });
   await batch.commit();
+  notifyDataChanged();
   return { changed: true };
 }
 
@@ -479,6 +483,7 @@ export async function mergeFarmers({ keep, dup, dupPurchases, fill = [] }) {
   });
 
   await batch.commit();
+  notifyDataChanged();
   return { moved: dupPurchases.length, kg, ugx };
 }
 
@@ -577,6 +582,7 @@ export async function fixStatsDrift(rows) {
     });
     await batch.commit();
   }
+  notifyDataChanged();
 }
 
 // ----------------------------------------------------------- staff access
@@ -625,3 +631,59 @@ export async function resolveSignupRequest(request, approve) {
   await writeAudit({ action: approve ? 'staff.approve' : 'staff.reject', target: request.email, summary: (approve ? 'Approved ' : 'Rejected ') + 'sign-in request from ' + request.email });
 }
 
+/**
+ * Sets up a new field office end to end - the same three pieces the field
+ * app's Add Office creates (public/js/screens/addOffice.js), using the same
+ * shared identity rules (officeAccounts.js) so the office can sign in on a
+ * phone straight away: the Auth account (code as password, padded), the
+ * fieldOffices entry that puts it in the sign-in picker, and the
+ * allowedStaff entry that grants access.
+ */
+export async function createFieldOffice({ name, code }) {
+  const officeId = officeSlug(name);
+  if (!officeId) throw new Error('Enter an office name using letters or numbers.');
+  if (!String(code).trim()) throw new Error('Enter a sign-in code.');
+  const offices = await fetchCollection('fieldOffices');
+  if (offices.some((o) => o.id === officeId)) throw new Error('There is already an office called “' + name + '” (' + officeId + ').');
+
+  const email = officeIdToEmail(officeId);
+  const account = await createAuthAccount(email, officeCodeToPassword(String(code).trim()));
+  if (account.exists) throw new Error('A sign-in account for “' + officeId + '” already exists. Choose another name, or reset that office in the Firebase Console.');
+
+  const nextOrder = offices.reduce((m, o) => Math.max(m, Number(o.order) || 0), 0) + 1;
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'fieldOffices', officeId), { label: name.trim(), order: nextOrder, active: true, createdBy: currentAdminName(), createdAt: serverTimestamp() });
+  batch.set(doc(db, 'allowedStaff', email), { addedAt: serverTimestamp(), addedBy: currentAdminName(), displayName: name.trim() });
+  auditInBatch(batch, { action: 'staff.addOffice', target: email, summary: 'Added field office ' + name.trim() + ' (' + officeId + ')' });
+  await batch.commit();
+  return { officeId };
+}
+
+/**
+ * Gives a person a management (or plain staff) account: an individual
+ * email + temporary password, plus their allowedStaff entry. If the email
+ * already has an Auth account, access is granted without touching its
+ * password. They should change the temporary password after first sign-in
+ * (Firebase Console -> Authentication, or the "forgot password" email).
+ */
+export async function createPersonAccount({ email, password, displayName, admin }) {
+  const clean = String(email).trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean)) throw new Error('Enter a valid email address.');
+  const account = await createAuthAccount(clean, password);
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'allowedStaff', clean), {
+    addedAt: serverTimestamp(),
+    addedBy: currentAdminName(),
+    ...(displayName ? { displayName: displayName.trim() } : {}),
+    ...(admin ? { role: 'admin' } : {}),
+  });
+  auditInBatch(batch, { action: 'staff.addPerson', target: clean, summary: 'Gave ' + clean + (admin ? ' admin' : ' staff') + ' access' + (account.exists ? ' (existing account)' : ' with a new account') });
+  try {
+    await batch.commit();
+  } catch (err) {
+    // allowedStaff is create-only for another account's existing doc
+    if (err.code === 'permission-denied') throw new Error(clean + ' already has access. Use Make admin / Remove admin on their row instead.');
+    throw err;
+  }
+  return { existed: !!account.exists };
+}
