@@ -144,14 +144,22 @@ export function openDialog(title, build, { wide = false } = {}) {
   return new Promise((resolve) => {
     const dialog = el('dialog', { class: 'dialog' + (wide ? ' dialog-wide' : '') });
     let result;
-    const close = (value) => {
-      result = value;
-      dialog.close();
-    };
-    dialog.addEventListener('close', () => {
+    let done = false;
+    // Resolve as soon as a button decides - not on the dialog's 'close'
+    // event, which the browser can hold back (e.g. in a backgrounded tab),
+    // leaving the action that was confirmed silently never carried out.
+    const finish = () => {
+      if (done) return;
+      done = true;
       dialog.remove();
       resolve(result);
-    });
+    };
+    const close = (value) => {
+      result = value;
+      if (dialog.open) dialog.close();
+      finish();
+    };
+    dialog.addEventListener('close', finish); // Esc key
     dialog.append(
       el('div', { class: 'dialog-head' }, [
         el('h3', {}, title),

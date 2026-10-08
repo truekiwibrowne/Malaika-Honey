@@ -607,11 +607,48 @@ export async function setStaffRole(email, role) {
  * offline keeps working from its cached approval until it next connects
  * (see docs/Risk-Register.md) - say so wherever this is offered.
  */
-export async function revokeStaff(email) {
+export async function revokeStaff(email, role = null) {
   const batch = writeBatch(db);
   batch.delete(doc(db, 'allowedStaff', email));
-  auditInBatch(batch, { action: 'staff.revoke', target: email, summary: 'Revoked access for ' + email });
+  // The role is kept in the audit entry so "Restore access" can put back
+  // exactly what was removed.
+  auditInBatch(batch, { action: 'staff.revoke', target: email, summary: 'Revoked access for ' + email, details: { role: role || null } });
   await batch.commit();
+  notifyDataChanged();
+}
+
+/**
+ * Gives a revoked (or never-approved) account its access back: recreates
+ * its allowedStaff entry and, if the person has a sign-in request waiting,
+ * marks it approved. The phone picks it up on "Check Again" or its next
+ * online start. Audited as staff.restore.
+ */
+export async function restoreStaffAccess(email, { role = null, reason = '' } = {}) {
+  const clean = String(email).trim();
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'allowedStaff', clean), {
+    addedAt: serverTimestamp(),
+    addedBy: currentAdminName(),
+    restored: true,
+    ...(role === 'admin' ? { role: 'admin' } : {}),
+  });
+  auditInBatch(batch, { action: 'staff.restore', target: clean, summary: 'Restored access for ' + clean + (role === 'admin' ? ' (admin)' : '') + (reason ? ' - ' + reason : ''), details: { role } });
+  try {
+    await batch.commit();
+  } catch (err) {
+    if (err.code === 'permission-denied') throw new Error(clean + ' already has access.');
+    throw err;
+  }
+  // Close any waiting request so it doesn't linger in "Waiting for approval".
+  try {
+    const req = await getDoc(doc(db, 'signupRequests', clean));
+    if (req.exists() && req.data().status === 'pending') {
+      await updateDoc(doc(db, 'signupRequests', clean), { status: 'approved', resolvedAt: serverTimestamp(), resolvedBy: currentAdminName() });
+    }
+  } catch (err) {
+    console.warn('[Malaika Admin] Restored access, but could not close the sign-in request:', err);
+  }
+  notifyDataChanged();
 }
 
 /** Mirrors the field app's adminApprovals.js approveRequest/rejectRequest. */
@@ -629,6 +666,7 @@ export async function resolveSignupRequest(request, approve) {
     resolvedBy: currentAdminName(),
   });
   await writeAudit({ action: approve ? 'staff.approve' : 'staff.reject', target: request.email, summary: (approve ? 'Approved ' : 'Rejected ') + 'sign-in request from ' + request.email });
+  notifyDataChanged();
 }
 
 /**

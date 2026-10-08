@@ -1,5 +1,6 @@
 import { el, mount, spinner, formatUgx, formatKg, table, segmented, compact, formatNumber } from '../lib/ui.js';
-import { fetchAllFarmers, fetchAllPurchases, loadDistrictResolver } from '../lib/data.js';
+import { fetchAllFarmers, fetchAllPurchases, loadDistrictResolver, fetchCollection } from '../lib/data.js';
+import { officeIdToEmail } from '../shared/officeAccounts.js';
 import { loadCollection } from '../lib/refdata.js';
 import { REGIONS, UNKNOWN_REGION } from '../lib/geo.js';
 import {
@@ -76,6 +77,36 @@ export async function renderDashboard(root) {
     return;
   }
 
+  // Access problems a manager must act on - shown here because nobody
+  // opens Settings → Staff access just to check. Loaded without blocking.
+  const accessNotices = el('div');
+  Promise.all([
+    fetchCollection('signupRequests').catch(() => []),
+    fetchCollection('fieldOffices').catch(() => []),
+    fetchCollection('allowedStaff').catch(() => null),
+  ]).then(([requests, offices, staff]) => {
+    const waiting = requests.filter((r) => r.status === 'pending');
+    const allowed = staff ? new Set(staff.map((x) => x.id.trim().toLowerCase())) : null;
+    const locked = allowed ? offices.filter((o) => o.active !== false && !allowed.has(officeIdToEmail(o.id).toLowerCase())) : [];
+    const who = (r) => r.displayName || String(r.email).split('@')[0];
+    mount(accessNotices,
+      locked.length
+        ? el('div', { class: 'notice notice-bad' }, [
+            el('strong', {}, locked.map((o) => o.label || o.id).join(', ') + (locked.length === 1 ? ' office can’t sign in. ' : ' offices can’t sign in. ')),
+            el('span', {}, 'They are on the phones’ sign-in screen but have no access, so staff there see “Approval Needed”. '),
+            el('a', { href: '#/settings?tab=staff' }, 'Restore or review →'),
+          ])
+        : null,
+      waiting.length
+        ? el('div', { class: 'notice notice-warn' }, [
+            el('strong', {}, waiting.length + ' sign-in request' + (waiting.length === 1 ? '' : 's') + ' waiting for approval: '),
+            el('span', {}, waiting.slice(0, 5).map(who).join(', ') + (waiting.length > 5 ? '…' : '') + '. '),
+            el('a', { href: '#/settings?tab=staff' }, 'Review →'),
+          ])
+        : null
+    );
+  });
+
   // Merged records are duplicates of another farmer - never count them twice.
   const liveFarmers = farmers.filter((f) => f.status !== 'merged');
   const farmerByFrn = new Map(farmers.map((f) => [f.frn, f]));
@@ -119,6 +150,7 @@ export async function renderDashboard(root) {
         el('p', { class: 'muted' }, 'All time: ' + formatNumber(liveFarmers.length) + ' farmers · ' + formatNumber(allTime.count) + ' purchases · ' + formatKg(allTime.kg) + ' · ' + formatUgx(allTime.ugx)),
       ]),
     ]),
+    accessNotices,
     el('div', { class: 'filter-bar sticky-filters' }, [periodSelect, customBox, rangeLabel]),
     unverified
       ? el('div', { class: 'notice notice-warn' }, [

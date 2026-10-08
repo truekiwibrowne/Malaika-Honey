@@ -1,6 +1,7 @@
-import { el, mount, spinner, table, toast, confirmDialog, tabs, hashQuery, formatDateTime } from '../lib/ui.js';
+import { el, mount, spinner, table, toast, confirmDialog, openDialog, tabs, hashQuery, formatDateTime } from '../lib/ui.js';
 import { COLLECTIONS, loadCollection, saveEntries, slugFromLabel } from '../lib/refdata.js';
-import { fetchStaff, fetchSignupRequests, setStaffRole, revokeStaff, resolveSignupRequest, fetchAllFarmers, createFieldOffice, createPersonAccount } from '../lib/data.js';
+import { fetchStaff, fetchSignupRequests, setStaffRole, revokeStaff, resolveSignupRequest, fetchAllFarmers, createFieldOffice, createPersonAccount, restoreStaffAccess, fetchCollection } from '../lib/data.js';
+import { officeIdToEmail } from '../shared/officeAccounts.js';
 import { fetchAudit } from '../lib/audit.js';
 import { currentAdminEmail } from '../lib/auth.js';
 import { REGIONS, loadUgandaGeo, makeDistrictResolver } from '../lib/geo.js';
@@ -45,10 +46,12 @@ const TYPE_LABELS = {
 export async function renderSettings(root) {
   const active = TABS.some((t) => t.key === hashQuery().get('tab')) ? hashQuery().get('tab') : 'products';
   const host = el('div', { class: 'settings-body' }, spinner());
+  // Sign-in requests waiting - shown on the Staff access tab's label.
+  const waiting = await fetchSignupRequests().then((r) => r.filter((x) => x.status === 'pending').length).catch(() => 0);
   mount(
     root,
     el('div', { class: 'page-head' }, [el('div', {}, [el('h1', {}, 'Settings'), el('p', { class: 'muted' }, 'The lists and options the field app uses, and who can sign in. Changes reach field phones the next time they’re online.')])]),
-    tabs(TABS, active, (key) => navigate('#/settings?tab=' + key)),
+    tabs(TABS.map((t) => (t.key === 'staff' && waiting ? { ...t, label: t.label + ' (' + waiting + ' waiting)' } : t)), active, (key) => navigate('#/settings?tab=' + key)),
     host
   );
 
@@ -552,10 +555,57 @@ function identity(email) {
   return { kind: 'Personal account', name: email };
 }
 
+/**
+ * Revoking a field office locks out every phone signed in as it, so it
+ * takes typing the office's name - a plain "OK" was too easy to click
+ * through while tidying up a list of old accounts (how Arua was locked out
+ * on 6 Oct 2026).
+ */
+function confirmOfficeRevoke(name) {
+  return openDialog('Revoke access for the ' + name + ' office?', (close) => {
+    const input = el('input', { type: 'text', placeholder: name, autocomplete: 'off' });
+    const go = el('button', { type: 'button', class: 'btn btn-danger btn-sm', disabled: true }, 'Revoke office access');
+    input.addEventListener('input', () => (go.disabled = input.value.trim().toLowerCase() !== name.toLowerCase()));
+    go.addEventListener('click', () => close(true));
+    return [
+      el('p', {}, ['Every phone signed in as ', el('strong', {}, name), ' will be locked out of farmer and purchase data the next time it goes online, and staff there will see “Approval Needed”.']),
+      el('p', {}, 'If you only want to stop new sign-ins, hide the office in Settings → Field offices instead.'),
+      el('div', { class: 'field' }, [el('label', {}, 'Type the office name to confirm'), input]),
+      el('div', { class: 'dialog-actions' }, [el('button', { type: 'button', class: 'btn btn-secondary btn-sm', onClick: () => close(false) }, 'Cancel'), go]),
+    ];
+  }).then((v) => v === true);
+}
+
 async function renderStaff(host) {
-  const [staff, requests] = await Promise.all([fetchStaff(), fetchSignupRequests()]);
+  const [staff, requests, offices, audit] = await Promise.all([
+    fetchStaff(),
+    fetchSignupRequests(),
+    fetchCollection('fieldOffices').catch(() => []),
+    fetchAudit(300).catch(() => []),
+  ]);
   const me = currentAdminEmail();
   const pending = requests.filter((r) => r.status === 'pending');
+  // Keep the tab's "(n waiting)" in step after an approve/reject here.
+  const tab = [...document.querySelectorAll('.tab')].find((t) => t.textContent.startsWith('Staff access'));
+  if (tab) tab.textContent = 'Staff access' + (pending.length ? ' (' + pending.length + ' waiting)' : '');
+  const hasAccess = new Set(staff.map((s) => s.id.trim().toLowerCase()));
+  // Accounts revoked here that haven't been given access back since: the
+  // newest revoke per account, with the role it had.
+  const revoked = [];
+  const seenRevoked = new Set();
+  for (const e of audit) {
+    if (e.action !== 'staff.revoke' || !e.target) continue;
+    const email = String(e.target).trim();
+    const key = email.toLowerCase();
+    if (seenRevoked.has(key) || hasAccess.has(key)) continue;
+    seenRevoked.add(key);
+    revoked.push({ email, entry: e });
+  }
+  const officeRows = offices
+    .slice()
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map((o) => ({ office: o, email: officeIdToEmail(o.id), access: hasAccess.has(officeIdToEmail(o.id).toLowerCase()) }));
+  const officeEmails = new Set(officeRows.map((r) => r.email.toLowerCase()));
 
   const act = (label, kind, fn) => {
     const b = el('button', { type: 'button', class: 'btn btn-xs ' + kind }, label);
@@ -573,7 +623,8 @@ async function renderStaff(host) {
     return b;
   };
 
-  const sorted = staff.slice().sort((a, b) => (b.role === 'admin') - (a.role === 'admin') || a.id.localeCompare(b.id));
+  // Offices have their own section below; this list is people/phones.
+  const sorted = staff.filter((s) => !officeEmails.has(s.id.toLowerCase())).sort((a, b) => (b.role === 'admin') - (a.role === 'admin') || a.id.localeCompare(b.id));
 
   // ---- add access: a field office, or a person
   const addResult = el('div');
@@ -674,7 +725,52 @@ async function renderStaff(host) {
         }))
       : el('p', { class: 'muted' }, 'No one is waiting.'),
 
-    el('h2', {}, 'Who can sign in'),
+    el('h2', {}, 'Field offices'),
+    el('p', { class: 'muted small' }, 'The offices on the phones’ sign-in screen, and whether each one can actually sign in. An office shown on phones without access leaves its staff stuck on “Approval Needed” - that is also flagged in Data checks.'),
+    officeRows.length
+      ? table(['Office', 'Sign-in name', 'On phones', 'Access', ''], officeRows.map(({ office, email, access }) => {
+          const name = office.label || office.id;
+          return el('tr', { class: access ? '' : office.active === false ? 'row-muted' : 'row-warn' }, [
+            el('td', {}, el('strong', {}, name)),
+            el('td', { class: 'mono small' }, office.id),
+            el('td', {}, office.active === false ? el('span', { class: 'muted' }, 'hidden') : 'shown'),
+            el('td', {}, access ? el('span', { class: 'tag tag-good' }, 'can sign in') : el('span', { class: 'tag tag-bad' }, 'no access')),
+            el('td', { class: 'actions' }, access
+              ? [act('Revoke access', 'btn-outline-danger', async () => {
+                  if (!(await confirmOfficeRevoke(name))) return false;
+                  await revokeStaff(email, null);
+                  toast('Access revoked for ' + name + '.', 'success');
+                })]
+              : [act('Restore access', 'btn-green', async () => {
+                  await restoreStaffAccess(email, { reason: 'field office' });
+                  toast(name + ' can sign in again - on the phone, tap Check Again.', 'success');
+                })]),
+          ]);
+        }))
+      : el('p', { class: 'muted' }, 'No field offices yet - add one above.'),
+
+    revoked.filter((r) => !officeEmails.has(r.email.toLowerCase())).length
+      ? el('div', {}, [
+          el('h2', {}, 'Recently revoked'),
+          el('p', { class: 'muted small' }, 'Accounts whose access was revoked here. Restore puts it back exactly as it was (including admin).'),
+          table(['Account', 'Type', 'Revoked', 'By', ''], revoked.filter((r) => !officeEmails.has(r.email.toLowerCase())).map(({ email, entry }) => {
+            const who = identity(email);
+            const role = entry.details && entry.details.role;
+            return el('tr', {}, [
+              el('td', {}, [el('strong', {}, who.name), role === 'admin' ? el('span', { class: 'tag' }, 'was admin') : null]),
+              el('td', {}, who.kind),
+              el('td', {}, formatDateTime(entry.atLocal)),
+              el('td', {}, entry.by || '—'),
+              el('td', { class: 'actions' }, [act('Restore access', 'btn-outline', async () => {
+                await restoreStaffAccess(email, { role });
+                toast('Access restored for ' + who.name + '.', 'success');
+              })]),
+            ]);
+          })),
+        ])
+      : null,
+
+    el('h2', {}, 'People and phone accounts'),
     el('p', { class: 'muted small' }, 'Admins can use this management app and approve staff in the field app. Revoking access stops an account reading or writing any data - though a field phone that is offline keeps working from its last sign-in until it next connects. You can’t change your own access here.'),
     table(['Account', 'Type', 'Role', ''], sorted.map((s) => {
       const who = identity(s.id);
@@ -694,8 +790,10 @@ async function renderStaff(host) {
                 await setStaffRole(s.id, 'admin');
               }),
           act('Revoke access', 'btn-outline-danger', async () => {
-            if (!(await confirmDialog('Revoke access for ' + who.name + '?', [who.kind === 'Field office' ? 'Everyone signing in as this office will be locked out of farmer and purchase data.' : 'This account will be locked out of farmer and purchase data.', 'To restore access later, they sign in again and you approve the request.'], { confirmLabel: 'Revoke access', danger: true }))) return false;
-            await revokeStaff(s.id);
+            if (who.kind === 'Field office') {
+              if (!(await confirmOfficeRevoke(who.name))) return false;
+            } else if (!(await confirmDialog('Revoke access for ' + who.name + '?', ['This account will be locked out of farmer and purchase data.', 'You can undo this from “Recently revoked” on this page.'], { confirmLabel: 'Revoke access', danger: true }))) return false;
+            await revokeStaff(s.id, s.role || null);
             toast('Access revoked for ' + who.name + '.', 'success');
           }),
         ]),

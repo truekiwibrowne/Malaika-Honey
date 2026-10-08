@@ -1,6 +1,6 @@
 import { el, mount, spinner, table, toast, confirmDialog, openDialog, formatKg, formatUgx, formatNumber, formatDate, formatDateTime } from '../lib/ui.js';
 import { fixStatsDrift } from '../lib/data.js';
-import { loadIssues, setChecksCount, closeDuplicate, reopenCheck } from '../lib/checks.js';
+import { loadIssues, setChecksCount, setApprovalsCount, closeDuplicate, reopenCheck } from '../lib/checks.js';
 import { registeredIso } from '../lib/stats.js';
 
 /**
@@ -22,6 +22,7 @@ export async function renderDataHealth(root) {
     return;
   }
   setChecksCount(r.openCount);
+  setApprovalsCount(r.pendingRequests.length);
   const rerender = () => renderDataHealth(root);
 
   const fixBtn = el('button', { type: 'button', class: 'btn btn-maroon btn-sm' }, 'Correct all ' + r.drift.length);
@@ -87,6 +88,18 @@ export async function renderDataHealth(root) {
         el('p', { class: 'muted' }, (r.openCount ? plural(r.openCount, 'issue') + ' to review' : 'Nothing to review') + ' · ' + formatNumber(r.live.length) + ' farmers and ' + formatNumber(r.purchases.length) + ' purchases checked just now.'),
       ]),
     ]),
+
+    r.lockedOffices.length
+      ? check(
+          false,
+          r.lockedOffices.length + ' field office' + (r.lockedOffices.length === 1 ? '' : 's') + ' can’t sign in',
+          'On the phones’ sign-in screen but with no access, so staff there are stuck on “Approval Needed”: ' + r.lockedOffices.map((o) => o.label || o.id).join(', ') + '. Restore access, or hide the office if it’s no longer used.',
+          el('div', { class: 'btn-row-inline' }, [
+            el('a', { href: '#/settings?tab=staff', class: 'btn btn-maroon btn-sm' }, 'Restore in Staff access'),
+            el('a', { href: '#/settings?tab=fieldOffices', class: 'btn btn-outline btn-sm' }, 'Hide an office'),
+          ])
+        )
+      : null,
 
     check(
       !r.drift.length,

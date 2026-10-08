@@ -4,6 +4,28 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-10-08
+
+### Incident - Arua office locked out ("Approval Needed")
+Not a code fault in v0.11.0: on 6 Oct 2026 an admin revoked 11 accounts from management Settings → Staff access in about 40 seconds - mostly old phone-number accounts, but **`arua@office…` and the Test office were among them**. Arua's phones kept working from their saved approval until they next checked online (7 Oct), then showed "Approval Needed"; the request waited unseen in Staff access. Every other office (Soroti, Mbarara, Mitooma, Kampala, Admin) was unaffected. Found from the `adminAudit` log. This release makes that mistake hard to make, impossible to miss, and one click to undo.
+
+### Added - management app
+- **Settings badge** in the sidebar counting sign-in requests waiting for approval (opens Staff access directly), the count on the **Staff access** tab, and **Dashboard notices**: "N sign-in requests waiting" and "X office can't sign in".
+- **Staff access → Field offices**: every office on the phones' sign-in screen with whether it can actually sign in, and **Restore access** for one that can't.
+- **Recently revoked**: accounts revoked here (from the audit log) with **Restore access**, which puts back the role they had - revokes now record it.
+- **Data checks**: "Field office can't sign in" - an office shown on phones with no access - counted in the badge.
+
+### Changed
+- **Revoking a field office requires typing its name**, and explains that every phone at that office will be locked out (and that hiding the office is the gentler option).
+- The phone's **"Approval Needed"** screen now says what's wrong and who fixes it ("The code is right, but this office's access is switched off. Ask your manager to approve "arua" in the management app (Settings → Staff access), then tap Check Again").
+
+### Fixed
+- Confirmation dialogs could leave a confirmed action silently undone when the browser delayed the dialog's close event (seen with a backgrounded tab); they now act on the button press itself.
+- A screen whose code failed to download (dropped connection) left the management app on a spinner forever; it now says so with a Retry button.
+
+### Verified
+On the emulators: typed-name revoke of an office (button locked until the name matches), the office then flagged in Staff access, Data checks and the Dashboard; the phone app showing the new message and filing a request; the Settings badge and Dashboard notice appearing; Approve clearing every badge and notice and the phone getting in on Check Again; a revoked phone account restored from Recently revoked.
+
 ## [0.11.0] - 2026-10-06
 
 Farm GPS, crops & livestock, villages as a managed list, staff set-up from the management app, and a management app that uses the whole screen.

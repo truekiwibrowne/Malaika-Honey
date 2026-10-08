@@ -8,7 +8,8 @@ import {
 import { db } from './firebase.js';
 import { currentAdminName } from './auth.js';
 import { auditInBatch, notifyDataChanged } from './audit.js';
-import { fetchAllFarmers, fetchAllPurchases, loadDistrictResolver, computeStatsDrift, findLikelyDuplicates } from './data.js';
+import { fetchAllFarmers, fetchAllPurchases, loadDistrictResolver, computeStatsDrift, findLikelyDuplicates, fetchCollection } from './data.js';
+import { officeIdToEmail } from '../shared/officeAccounts.js';
 import { loadCollection } from './refdata.js';
 import { normalisePhone } from './importer.js';
 import { loadUgandaGeo, makeDistrictResolver } from './geo.js';
@@ -34,7 +35,7 @@ export async function fetchDismissals() {
 
 export const duplicateKey = (group) => 'dup-' + group.farmers.map((f) => f.frn).sort().join('-');
 
-export function computeIssues({ farmers, purchases, districtEntries, resolveDistrict, autoResolve, dismissals }) {
+export function computeIssues({ farmers, purchases, districtEntries, resolveDistrict, autoResolve, dismissals, offices = [], staff = null }) {
   const live = farmers.filter((f) => f.status !== 'merged');
   const dismissed = new Map(dismissals.map((d) => [d.id, d]));
 
@@ -68,24 +69,36 @@ export function computeIssues({ farmers, purchases, districtEntries, resolveDist
 
   const noReceipt = purchases.filter((p) => !String(p.receiptNo || '').trim());
 
-  const openCount = drift.length + duplicates.length + unmatched.length + unplaced.length + noDistrict.length + unresolvedDistricts.length;
-  return { live, drift, duplicates, closedDuplicates, unmatched, unplaced, noDistrict, unresolvedDistricts, noReceipt, openCount };
+  // Offices staff can pick on the phone's sign-in screen but that have no
+  // access - everyone there is stuck on "Approval Needed". (Skipped if the
+  // staff list couldn't be read, rather than flagging every office.)
+  const allowed = staff ? new Set(staff.map((s) => s.id.trim().toLowerCase())) : null;
+  const lockedOffices = allowed
+    ? offices.filter((o) => o.active !== false && !allowed.has(officeIdToEmail(o.id).toLowerCase()))
+    : [];
+
+  const openCount = drift.length + duplicates.length + unmatched.length + unplaced.length + noDistrict.length + unresolvedDistricts.length + lockedOffices.length;
+  return { live, drift, duplicates, closedDuplicates, unmatched, unplaced, noDistrict, unresolvedDistricts, noReceipt, lockedOffices, openCount };
 }
 
 /** Fetches everything and computes the issues. */
 export async function loadIssues() {
-  const [farmers, purchases, geoCtx, districts, dismissals] = await Promise.all([
+  const [farmers, purchases, geoCtx, districts, dismissals, offices, staff, requests] = await Promise.all([
     fetchAllFarmers(),
     fetchAllPurchases(),
     loadDistrictResolver(),
     loadCollection('districts'),
     fetchDismissals(),
+    fetchCollection('fieldOffices').catch(() => []),
+    fetchCollection('allowedStaff').catch(() => null),
+    fetchCollection('signupRequests').catch(() => []),
   ]);
   const autoResolve = makeDistrictResolver(await loadUgandaGeo(), []);
   return {
     farmers,
     purchases,
-    ...computeIssues({ farmers, purchases, districtEntries: districts.entries, resolveDistrict: geoCtx.resolveDistrict, autoResolve, dismissals }),
+    pendingRequests: requests.filter((r) => r.status === 'pending'),
+    ...computeIssues({ farmers, purchases, districtEntries: districts.entries, resolveDistrict: geoCtx.resolveDistrict, autoResolve, dismissals, offices, staff }),
   };
 }
 
@@ -93,6 +106,8 @@ export async function loadIssues() {
 
 let badgeCount = null;
 const listeners = new Set();
+let approvalsCount = null;
+const approvalListeners = new Set();
 
 export function onChecksCount(fn) {
   listeners.add(fn);
@@ -105,6 +120,18 @@ export function setChecksCount(n) {
   listeners.forEach((fn) => fn(n));
 }
 
+/** Sign-in requests waiting for an admin - the badge on Settings. */
+export function onApprovalsCount(fn) {
+  approvalListeners.add(fn);
+  if (approvalsCount !== null) fn(approvalsCount);
+  return () => approvalListeners.delete(fn);
+}
+
+export function setApprovalsCount(n) {
+  approvalsCount = n;
+  approvalListeners.forEach((fn) => fn(n));
+}
+
 let refreshing = null;
 /**
  * Recounts open issues for the sidebar badge. Called after sign-in and
@@ -114,7 +141,10 @@ let refreshing = null;
 export function refreshChecksBadge() {
   if (!refreshing) {
     refreshing = loadIssues()
-      .then((r) => setChecksCount(r.openCount))
+      .then((r) => {
+        setChecksCount(r.openCount);
+        setApprovalsCount(r.pendingRequests.length);
+      })
       .catch((err) => console.warn('[Malaika Admin] Could not count data checks:', err))
       .finally(() => (refreshing = null));
   }

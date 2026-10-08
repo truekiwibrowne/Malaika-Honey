@@ -13,51 +13,70 @@ function showLoading(message) {
   mount(root, spinner(message));
 }
 
+/**
+ * Loads a screen's code. On a dropped connection the import rejects, and
+ * without this the page would sit on its spinner forever with nothing to
+ * say why - show what happened and a Retry instead. (The `throw` stops the
+ * route handler; the error is already handled here.)
+ */
+async function loadScreen(importer) {
+  try {
+    return await importer();
+  } catch (err) {
+    console.error(err);
+    mount(root, el('div', { class: 'empty-state' }, [
+      el('p', {}, 'This page couldn’t load - the connection may have dropped.'),
+      el('button', { type: 'button', class: 'btn btn-maroon btn-sm', onClick: () => location.reload() }, 'Retry'),
+    ]));
+    throw err;
+  }
+}
+
 // Screens are imported on demand, same reasoning as the field app's
 // app.js - nothing but the login screen is needed until someone signs in.
 addRoute('/dashboard', async () => {
   showLoading('Loading dashboard…');
-  const { renderDashboard } = await import('./screens/dashboard.js');
+  const { renderDashboard } = await loadScreen(() => import('./screens/dashboard.js'));
   renderDashboard(root);
 });
 addRoute('/regions', async () => {
   showLoading('Loading map…');
-  const { renderRegions } = await import('./screens/regions.js');
+  const { renderRegions } = await loadScreen(() => import('./screens/regions.js'));
   renderRegions(root);
 });
 addRoute('/farmers', async () => {
   showLoading('Loading farmers…');
-  const { renderFarmers } = await import('./screens/farmers.js');
+  const { renderFarmers } = await loadScreen(() => import('./screens/farmers.js'));
   renderFarmers(root);
 });
 addRoute('/farmers/:frn', async (params) => {
   showLoading('Loading farmer…');
-  const { renderFarmerDetail } = await import('./screens/farmerDetail.js');
+  const { renderFarmerDetail } = await loadScreen(() => import('./screens/farmerDetail.js'));
   renderFarmerDetail(root, params);
 });
 addRoute('/purchases', async () => {
   showLoading('Loading purchases…');
-  const { renderPurchases } = await import('./screens/purchases.js');
+  const { renderPurchases } = await loadScreen(() => import('./screens/purchases.js'));
   renderPurchases(root);
 });
 addRoute('/purchases/:purchaseId', async (params) => {
   showLoading('Loading purchase…');
-  const { renderPurchaseDetail } = await import('./screens/purchaseDetail.js');
+  const { renderPurchaseDetail } = await loadScreen(() => import('./screens/purchaseDetail.js'));
   renderPurchaseDetail(root, params);
 });
 addRoute('/import', async () => {
   showLoading('Loading…');
-  const { renderImportData } = await import('./screens/importData.js');
+  const { renderImportData } = await loadScreen(() => import('./screens/importData.js'));
   renderImportData(root);
 });
 addRoute('/checks', async () => {
   showLoading('Checking records…');
-  const { renderDataHealth } = await import('./screens/dataHealth.js');
+  const { renderDataHealth } = await loadScreen(() => import('./screens/dataHealth.js'));
   renderDataHealth(root);
 });
 addRoute('/settings', async () => {
   showLoading('Loading settings…');
-  const { renderSettings } = await import('./screens/settings.js');
+  const { renderSettings } = await loadScreen(() => import('./screens/settings.js'));
   renderSettings(root);
 });
 addRoute('/login', () => renderLogin(root), { public: true });
@@ -128,9 +147,22 @@ function updateChecksBadge(n) {
   }
 }
 let badgeHooked = false;
+// Sign-in requests waiting for approval, shown on the Settings menu item.
+let approvalsCount = 0;
+function updateApprovalsBadge(n) {
+  approvalsCount = n;
+  const badge = document.getElementById('approvals-badge');
+  if (badge) {
+    badge.textContent = n > 99 ? '99+' : String(n);
+    badge.hidden = !n;
+    badge.title = n + ' sign-in request' + (n === 1 ? '' : 's') + ' waiting for approval';
+    // With requests waiting, Settings opens straight on Staff access.
+    badge.parentElement.setAttribute('href', n ? '#/settings?tab=staff' : '#/settings');
+  }
+}
 // Any screen that changes something checks look at fires this.
 window.addEventListener('mh:data-changed', () => {
-  if (authState.isAdmin) checksModule().then((m) => m.refreshChecksBadge());
+  if (authState.isAdmin) checksModule().then((m) => m.refreshChecksBadge()).catch(() => {});
 });
 
 function renderNav() {
@@ -150,7 +182,7 @@ function renderNav() {
       el('div', { class: 'nav-sep' }),
       link('#/import', 'Import & Export', 'import'),
       link('#/checks', 'Data checks', 'checks', el('span', { id: 'checks-badge', class: 'nav-badge', hidden: !checksCount }, checksCount > 99 ? '99+' : String(checksCount))),
-      link('#/settings', 'Settings', 'settings'),
+      link(approvalsCount ? '#/settings?tab=staff' : '#/settings', 'Settings', 'settings', el('span', { id: 'approvals-badge', class: 'nav-badge', hidden: !approvalsCount }, String(approvalsCount))),
     ]),
     el('div', { class: 'nav-user' }, [
       el('span', { class: 'muted' }, cachedProfile()?.email || ''),
@@ -207,10 +239,11 @@ onAuthChange(async (user) => {
   checksModule().then((m) => {
     if (!badgeHooked) {
       m.onChecksCount(updateChecksBadge);
+      m.onApprovalsCount(updateApprovalsBadge);
       badgeHooked = true;
     }
     m.refreshChecksBadge();
-  });
+  }).catch((err) => console.warn('[Malaika Admin] Badges unavailable (will retry on the next change):', err));
   const target = pendingHash || (!location.hash || location.hash === '#/login' ? '#/dashboard' : location.hash);
   pendingHash = null;
   navigate(target);

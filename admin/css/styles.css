@@ -252,6 +252,7 @@ input.invalid { border-color: var(--color-red); }
 .tag-muted { color: var(--color-text-muted); }
 .notice { background: var(--color-bg); border: 1px solid var(--color-border); }
 .notice-warn { background: var(--color-yellow-soft); border: 1px solid #f0d9a8; color: var(--color-yellow-dark); }
+.notice-bad { background: #fdf0f0; border: 1px solid #f0c4c4; color: var(--color-red); }
 .notice-good { background: #eef7ef; border: 1px solid #bcdcbf; color: var(--color-green-dark); }
 tr.row-muted td { color: var(--color-text-muted); }
 tr.row-error td { background: #fdf3f3; }
